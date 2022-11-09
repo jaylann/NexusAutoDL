@@ -2,31 +2,50 @@ import subprocess
 import time
 
 import ctypes
-import win32api
+import win32api, win32con
 import numpy as np
-
+import cv2
 user32 = ctypes.windll.user32
 user32.SetProcessDPIAware()
-
+import os
 import mss
 
+class System:
+    def __init__(self, chrome: bool=False, vortex: bool=False):
+        self.monitors = self.getMonitors()
+        self.vortex_btn, self.web_btn = self._load_assets()
 
-def captureScreen():
-    with mss.mss() as sct:
-        mon = sct.monitors[0]
-        monitor = {
-            "top": mon["top"],
-            "left": mon["left"],
-            "width": mon["width"],
-            "height": mon["height"],
-            "mon": 0,
-        }
-        img = np.array(sct.grab(monitor))
-        return img
+    @staticmethod
+    def captureScreen():
+        with mss.mss() as sct:
+            mon = sct.monitors[0]
+            monitor = {
+                "top": mon["top"],
+                "left": mon["left"],
+                "width": mon["width"],
+                "height": mon["height"],
+                "mon": 0,
+            }
+            img = np.array(sct.grab(monitor))
+            return img
+    @staticmethod
+    def getMonitors():
+        return [monitor[2] for monitor in win32api.EnumDisplayMonitors(None, None)]
+    def _load_assets(self):
+        vortex_path = "assets/VortexDownloadButton.png"
+        web_path = "assets/WebsiteDownloadButton.png"
+        if os.path.isfile(vortex_path) and os.path.isfile(web_path):
+            return cv2.imread(vortex_path), cv2.imread(web_path)
+        else:
+            raise FileNotFoundError("Assets not found. Please verify installation")
 
 
-def getSystemMonitors():
-    return [monitor[2] for monitor in win32api.EnumDisplayMonitors(None, None)]
+    def click(self, x, y):
+        o_pos = win32api.GetCursorPos()
+        win32api.SetCursorPos((x, y))
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
+        win32api.SetCursorPos(o_pos)
 
 
 def moveWindows(monitors):
