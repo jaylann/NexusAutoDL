@@ -78,11 +78,18 @@ class System:
         v_found = False
         while True:
             img = self.captureScreen()
-            vortex_loc = self.detect(img, self.vortex_desc, 40)
-            if vortex_loc:
-                self.click(vortex_loc[0], vortex_loc[1])
-
-            time.sleep(0.5)
+            if not v_found:
+                vortex_loc = self.detect(img, self.vortex_desc, 40)
+                if vortex_loc:
+                    self.click(vortex_loc[0], vortex_loc[1])
+                    v_found = True
+            else:
+                web_loc = self.detect(img, self.web_desc, 40)
+                if web_loc:
+                    self.click(web_loc[0], web_loc[1])
+                    v_found = False
+                    time.sleep(5)
+            time.sleep(2)
 
     def click(self, x, y):
         o_pos = win32api.GetCursorPos()
@@ -109,6 +116,3 @@ def moveWindows(monitors):
     user32.moveWindow(chrome, x_c, y_c, w_c, h_c, True)
     user32.moveWindow(vortex, x_v, y_v, w_v, h_v, True)
 
-
-x = System()
-x.scan()
