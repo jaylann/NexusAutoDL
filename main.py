@@ -9,6 +9,7 @@ import mss
 import numpy as np
 import win32api
 import win32con
+import win32gui
 
 user32 = ctypes.windll.user32
 
@@ -18,7 +19,6 @@ class System:
 
         logging.info("Initializing system")
         logging.info(f"Arguments: chrome={chrome}, vortex={vortex}, verbose={verbose}")
-
 
         self.monitors = self.getMonitors()
         logging.info(f"Found {len(self.monitors)} monitors")
@@ -78,7 +78,8 @@ class System:
         web_path = "assets/WebsiteDownloadButton.png"
 
         if os.path.isfile(vortex_path) and os.path.isfile(web_path):
-            return cv2.cvtColor(cv2.imread(vortex_path), cv2.COLOR_BGR2RGB), cv2.cvtColor(cv2.imread(web_path), cv2.COLOR_BGR2RGB)
+            return cv2.cvtColor(cv2.imread(vortex_path), cv2.COLOR_BGR2RGB), cv2.cvtColor(cv2.imread(web_path),
+                                                                                          cv2.COLOR_BGR2RGB)
         else:
             raise FileNotFoundError("Assets not found. Please verify installation")
 
@@ -92,11 +93,21 @@ class System:
 
         return click_x, click_y
 
+    def monitor_to_image(self, pos_x, pos_y):
+        if len(self.monitors) > 1:
+            click_x = pos_x - self.negative_offset_x
+            click_y = pos_y
+        else:
+            click_x = pos_x
+            click_y = pos_y
+
+        return click_x, click_y
+
     def init_detector(self):
         logging.info("Initializing detector")
         sift = cv2.SIFT_create()
 
-        _, vortex_descriptors = sift.detectAndCompute(self.vortex_btn, mask=None)
+        _, vortex_descriptors = sift.detectAndCompute(cv2.cvtColor(self.vortex_btn, cv2.COLOR_BGR2GRAY), mask=None)
         _, website_descriptors = sift.detectAndCompute(self.web_btn, mask=None)
         logging.info("Initialized descriptors")
 
@@ -104,22 +115,30 @@ class System:
 
         return sift, vortex_descriptors, website_descriptors, matcher
 
-    def detect(self, img, descriptors, threshold):
+    def detect(self, img, descriptors, threshold, bbox=None):
         screenshot_keypoints, screenshot_desc = self.sift.detectAndCompute(img, mask=None)
 
         matches = self.matcher.knnMatch(descriptors, screenshot_desc, k=2)
+
         points = np.array([screenshot_keypoints[m.trainIdx].pt for m, _ in matches if m.distance < threshold]).astype(
             np.int32)
+        if bbox:
+            points = np.array([p for p in points if bbox[0] < p[0] < bbox[2] and bbox[1] < p[1] < bbox[3]])
         point = np.median(points, axis=0)
         if not np.isnan(point).any():
+            print(points)
             return self.generate_click(int(point[0]), int(point[1]))
 
     def scan(self):
         v_found = False
+        web_loop = 0
         while True:
-            img = self.captureScreen()
+            img = cv2.cvtColor(self.captureScreen(), cv2.COLOR_BGR2GRAY)
             if not v_found and self.vortex:
-                vortex_loc = self.detect(img, self.vortex_desc, 40)
+                vortex_bbox = list(self.get_vortex_bbox())
+                vortex_bbox[0], vortex_bbox[1] = self.monitor_to_image(vortex_bbox[0], vortex_bbox[1])
+                vortex_bbox[2], vortex_bbox[3] = self.monitor_to_image(vortex_bbox[2], vortex_bbox[3])
+                vortex_loc = self.detect(img, self.vortex_desc, 80, vortex_bbox)
                 if vortex_loc:
                     logging.info(f"Found vortex button at {vortex_loc}")
                     self.click(vortex_loc[0], vortex_loc[1])
@@ -130,10 +149,26 @@ class System:
                     logging.info(f"Found web button at {web_loc}")
                     self.click(web_loc[0], web_loc[1])
                     v_found = False
+                    web_loop = 0
                     logging.info("Waiting 5 seconds")
-                    time.sleep(5)
+                    time.sleep(8)
+                if web_loop < 5:
+                    v_found = False
+                    web_loop = 0
+                else:
+                    web_loop += 1
             logging.info("Waiting 2 seconds")
             time.sleep(2)
+
+    def get_vortex_bbox(self):
+        vortex = user32.FindWindowW(None, u"Vortex")
+        bbox = list(win32gui.GetWindowRect(vortex))
+        bbox[0] += bbox[2] * (1 / 5)
+        bbox[1] += bbox[3] * (1 / 5)
+        bbox[2] -= bbox[2] * (1 / 5)
+        bbox[3] -= bbox[3] * (1 / 5)
+
+        return bbox
 
     @staticmethod
     def click(x, y):
@@ -147,7 +182,8 @@ class System:
         win32api.SetCursorPos(o_pos)
 
     def prep_chrome(self):
-        subprocess.Popen(r'start chrome /new-tab about:blank', shell=False)
+
+        subprocess.Popen(r'start chrome /new-tab about:blank', shell=True)
         logging.info("Opened chrome")
 
         time.sleep(0.4)
@@ -166,15 +202,17 @@ class System:
             x_v, y_v, w_v, h_v = self.monitors[0][2] / 2, self.monitors[0][3] / 2, self.monitors[0][2], \
                                  self.monitors[0][3]
 
-        user32.moveWindow(chrome, x_c, y_c, w_c, h_c, True)
-        user32.moveWindow(vortex, x_v, y_v, w_v, h_v, True)
+        win32gui.SetWindowPos(chrome, None, x_c, y_c, 500, 500, True)
+        win32gui.SetWindowPos(vortex, None, x_v, y_v, 500, 500, True)
+        user32.ShowWindow(chrome, 3)
+        user32.ShowWindow(vortex, 3)
         logging.info("Moved chrome and vortex windows")
 
 
 @click.command()
-@click.option('--chrome', is_flag=True, default=False, help='Automatically move and size chrome and vortex windows')
-@click.option('--vortex', is_flag=True, default=False, help='Enables vortex mode')
-@click.option('--verbose', is_flag=True, default=False, help='Enables verbose mode')
+@click.option('--chrome', is_flag=True, default=True, help='Automatically move and size chrome and vortex windows')
+@click.option('--vortex', is_flag=True, default=True, help='Enables vortex mode')
+@click.option('--verbose', is_flag=True, default=True, help='Enables verbose mode')
 def main(chrome, vortex, verbose):
     if verbose:
         logging.basicConfig(level=logging.INFO, handlers=[
