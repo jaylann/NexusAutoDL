@@ -24,7 +24,7 @@ class System:
         logging.info(f"Found {len(self.monitors)} monitors")
         logging.info(f"Monitors: {self.monitors}")
 
-        self.vortex_btn, self.web_btn = self._load_assets()
+        self.vortex_btn, self.web_btn, self.click_btn = self._load_assets()
         logging.info("Loaded assets")
 
         self.negative_displays = [m for m in self.monitors if m[0] < 0]
@@ -36,7 +36,7 @@ class System:
         self.biggest_display = sorted(self.monitors, key=lambda monitor: abs(monitor[0]))[-1]
         logging.info("Calculated offsets")
 
-        self.sift, self.vortex_desc, self.web_desc, self.matcher = self.init_detector()
+        self.sift, self.vortex_desc, self.web_desc, self.click_desc, self.matcher = self.init_detector()
         logging.info("Initialized detector")
 
         self.screen, self.v_monitor = self.init_screen_capture()
@@ -76,12 +76,12 @@ class System:
     def _load_assets():
         vortex_path = "assets/VortexDownloadButton.png"
         web_path = "assets/WebsiteDownloadButton.png"
-
-        if os.path.isfile(vortex_path) and os.path.isfile(web_path):
-            return cv2.cvtColor(cv2.imread(vortex_path), cv2.COLOR_BGR2RGB), cv2.cvtColor(cv2.imread(web_path),
-                                                                                          cv2.COLOR_BGR2RGB)
-        else:
-            raise FileNotFoundError("Assets not found. Please verify installation")
+        click_path = "assets/ClickHereButton.png"
+        for path in [vortex_path, web_path, click_path]:
+            if os.path.isfile(path):
+                yield cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
+            else:
+                raise FileNotFoundError(f"Asset {path} not found")
 
     def generate_click(self, pos_x, pos_y):
         if len(self.monitors) > 1:
@@ -107,13 +107,14 @@ class System:
         logging.info("Initializing detector")
         sift = cv2.SIFT_create()
 
-        _, vortex_descriptors = sift.detectAndCompute(cv2.cvtColor(self.vortex_btn, cv2.COLOR_BGR2GRAY), mask=None)
+        _, vortex_descriptors = sift.detectAndCompute(self.vortex_btn, mask=None)
         _, website_descriptors = sift.detectAndCompute(self.web_btn, mask=None)
+        _, click_descriptors = sift.detectAndCompute(self.click_btn, mask=None)
         logging.info("Initialized descriptors")
 
         matcher = cv2.BFMatcher()
 
-        return sift, vortex_descriptors, website_descriptors, matcher
+        return sift, vortex_descriptors, website_descriptors, click_descriptors, matcher
 
     def detect(self, img, descriptors, threshold, bbox=None):
         screenshot_keypoints, screenshot_desc = self.sift.detectAndCompute(img, mask=None)
@@ -132,8 +133,9 @@ class System:
     def scan(self):
         v_found = False
         web_loop = 0
+        w_found = False
         while True:
-            img = cv2.cvtColor(self.captureScreen(), cv2.COLOR_BGR2GRAY)
+            img = self.captureScreen()
             if not v_found and self.vortex:
                 vortex_bbox = list(self.get_vortex_bbox())
                 vortex_bbox[0], vortex_bbox[1] = self.monitor_to_image(vortex_bbox[0], vortex_bbox[1])
@@ -143,16 +145,22 @@ class System:
                     logging.info(f"Found vortex button at {vortex_loc}")
                     self.click(vortex_loc[0], vortex_loc[1])
                     v_found = True
+            elif w_found:
+                click_loc = self.detect(img, self.click_desc, 40)
+                if click_loc:
+                    logging.info(f"Found click button at {click_loc}")
+                    w_found = False
+                    v_found = False
+                    time.sleep(3)
             elif v_found or not self.vortex:
                 web_loc = self.detect(img, self.web_desc, 40)
                 if web_loc:
                     logging.info(f"Found web button at {web_loc}")
                     self.click(web_loc[0], web_loc[1])
-                    v_found = False
                     web_loop = 0
-                    logging.info("Waiting 5 seconds")
-                    time.sleep(8)
-                if web_loop < 5:
+                    if self.vortex:
+                        w_found = True
+                if web_loop > 5:
                     v_found = False
                     web_loop = 0
                 else:
