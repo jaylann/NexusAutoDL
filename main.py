@@ -14,10 +14,11 @@ user32 = ctypes.windll.user32
 
 
 class System:
-    def __init__(self, chrome: bool = False, vortex: bool = False):
+    def __init__(self, chrome: bool = False, vortex: bool = False, verbose: bool = False):
 
         logging.info("Initializing system")
-        logging.info(f"Arguments: chrome={chrome}, vortex={vortex}")
+        logging.info(f"Arguments: chrome={chrome}, vortex={vortex}, verbose={verbose}")
+
 
         self.monitors = self.getMonitors()
         logging.info(f"Found {len(self.monitors)} monitors")
@@ -44,10 +45,12 @@ class System:
             self.prep_chrome()
 
         self.vortex = vortex
+        self.verbose = verbose
 
     def init_screen_capture(self):
         screen = mss.mss()
         mon = screen.monitors[0]
+
         monitor = {
             "top": mon["top"],
             "left": mon["left"],
@@ -55,21 +58,27 @@ class System:
             "height": abs(int(self.biggest_display[0] * (9 / 16))),
             "mon": 0,
         }
+        logging.info(f"Initialized screen capture with monitor: {monitor}")
+
         return screen, monitor
+
     def captureScreen(self):
         img = np.array(self.screen.grab(self.v_monitor))
+        logging.info("Captured screen")
+
         return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     @staticmethod
     def getMonitors():
         return sorted([monitor[2] for monitor in win32api.EnumDisplayMonitors(None, None)], key=lambda chunk: chunk[0])
 
-    def _load_assets(self):
+    @staticmethod
+    def _load_assets():
         vortex_path = "assets/VortexDownloadButton.png"
         web_path = "assets/WebsiteDownloadButton.png"
+
         if os.path.isfile(vortex_path) and os.path.isfile(web_path):
-            return cv2.cvtColor(cv2.imread(vortex_path), cv2.COLOR_BGR2RGB), cv2.cvtColor(cv2.imread(web_path),
-                                                                                          cv2.COLOR_BGR2RGB)
+            return cv2.cvtColor(cv2.imread(vortex_path), cv2.COLOR_BGR2RGB), cv2.cvtColor(cv2.imread(web_path), cv2.COLOR_BGR2RGB)
         else:
             raise FileNotFoundError("Assets not found. Please verify installation")
 
@@ -80,15 +89,19 @@ class System:
         else:
             click_x = pos_x
             click_y = pos_y
+
         return click_x, click_y
 
     def init_detector(self):
         logging.info("Initializing detector")
         sift = cv2.SIFT_create()
+
         _, vortex_descriptors = sift.detectAndCompute(self.vortex_btn, mask=None)
         _, website_descriptors = sift.detectAndCompute(self.web_btn, mask=None)
         logging.info("Initialized descriptors")
+
         matcher = cv2.BFMatcher()
+
         return sift, vortex_descriptors, website_descriptors, matcher
 
     def detect(self, img, descriptors, threshold):
@@ -108,27 +121,35 @@ class System:
             if not v_found and self.vortex:
                 vortex_loc = self.detect(img, self.vortex_desc, 40)
                 if vortex_loc:
+                    logging.info(f"Found vortex button at {vortex_loc}")
                     self.click(vortex_loc[0], vortex_loc[1])
                     v_found = True
             elif v_found or not self.vortex:
                 web_loc = self.detect(img, self.web_desc, 40)
                 if web_loc:
+                    logging.info(f"Found web button at {web_loc}")
                     self.click(web_loc[0], web_loc[1])
                     v_found = False
+                    logging.info("Waiting 5 seconds")
                     time.sleep(5)
+            logging.info("Waiting 2 seconds")
             time.sleep(2)
 
     @staticmethod
     def click(x, y):
         o_pos = win32api.GetCursorPos()
+
         win32api.SetCursorPos((x, y))
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
+        logging.info(f"Clicked at ({x}, {y})")
+
         win32api.SetCursorPos(o_pos)
 
     def prep_chrome(self):
         subprocess.Popen(r'start chrome /new-tab about:blank', shell=False)
         logging.info("Opened chrome")
+
         time.sleep(0.4)
 
         chrome = user32.FindWindowW(None, u"about:blank - Google Chrome")
@@ -136,6 +157,7 @@ class System:
         user32.ShowWindow(chrome, 1)
         user32.ShowWindow(vortex, 1)
         logging.info("Found chrome and vortex windows")
+
         if len(self.monitors) > 1:
             x_c, y_c, w_c, h_c = self.monitors[0][0], self.monitors[0][1], self.monitors[0][2], self.monitors[0][3]
             x_v, y_v, w_v, h_v = self.monitors[1][0], self.monitors[1][1], self.monitors[1][2], self.monitors[1][3]
@@ -143,6 +165,7 @@ class System:
             x_c, y_c, w_c, h_c = 0, 0, self.monitors[0][2] / 2, self.monitors[0][3] / 2
             x_v, y_v, w_v, h_v = self.monitors[0][2] / 2, self.monitors[0][3] / 2, self.monitors[0][2], \
                                  self.monitors[0][3]
+
         user32.moveWindow(chrome, x_c, y_c, w_c, h_c, True)
         user32.moveWindow(vortex, x_v, y_v, w_v, h_v, True)
         logging.info("Moved chrome and vortex windows")
@@ -164,7 +187,7 @@ def main(chrome, vortex, verbose):
             logging.StreamHandler()
         ], format='[%(asctime)s - %(levelname)s]: %(message)s', level=logging.ERROR)
 
-    agent = System(chrome, vortex)
+    agent = System(chrome, vortex, verbose)
     agent.scan()
 
 
