@@ -2,7 +2,7 @@ import ctypes
 import os
 import subprocess
 import time
-
+import logging
 import click as click
 import cv2
 import mss
@@ -14,18 +14,34 @@ user32 = ctypes.windll.user32
 
 
 class System:
-    def __init__(self, chrome: bool = False, vortex: bool = False, verbose: bool = False):
+    def __init__(self, chrome: bool = False, vortex: bool = False):
+
+        logging.info("Initializing system")
+        logging.info(f"Arguments: chrome={chrome}, vortex={vortex}")
+
         self.monitors = self.getMonitors()
+        logging.info(f"Found {len(self.monitors)} monitors")
+        logging.info(f"Monitors: {self.monitors}")
+
         self.vortex_btn, self.web_btn = self._load_assets()
+        logging.info("Loaded assets")
+
         self.negative_displays = [m for m in self.monitors if m[0] < 0]
+        logging.info(f"Found {len(self.negative_displays)} negative displays")
+        logging.info(f"Negative displays: {self.negative_displays}")
+
         self.negative_offset_x = sum([m[0] for m in self.negative_displays])
         self.negative_offset_y = sorted(self.monitors, key=lambda monitor: monitor[1])[0][1]
         self.biggest_display = sorted(self.monitors, key=lambda monitor: abs(monitor[0]))[-1]
+        logging.info("Calculated offsets")
+
         self.sift, self.vortex_desc, self.web_desc, self.matcher = self.init_detector()
+        logging.info("Initialized detector")
+
         if chrome:
             self.prep_chrome()
+
         self.vortex = vortex
-        self.verbose = verbose
 
     def captureScreen(self):
         with mss.mss() as sct:
@@ -63,9 +79,11 @@ class System:
         return click_x, click_y
 
     def init_detector(self):
+        logging.info("Initializing detector")
         sift = cv2.SIFT_create()
         _, vortex_descriptors = sift.detectAndCompute(self.vortex_btn, mask=None)
         _, website_descriptors = sift.detectAndCompute(self.web_btn, mask=None)
+        logging.info("Initialized descriptors")
         matcher = cv2.BFMatcher()
         return sift, vortex_descriptors, website_descriptors, matcher
 
@@ -106,12 +124,14 @@ class System:
 
     def prep_chrome(self):
         subprocess.Popen(r'start chrome /new-tab about:blank', shell=False)
+        logging.info("Opened chrome")
         time.sleep(0.4)
 
         chrome = user32.FindWindowW(None, u"about:blank - Google Chrome")
         vortex = user32.FindWindowW(None, u"Vortex")
         user32.ShowWindow(chrome, 1)
         user32.ShowWindow(vortex, 1)
+        logging.info("Found chrome and vortex windows")
         if len(self.monitors) > 1:
             x_c, y_c, w_c, h_c = self.monitors[0][0], self.monitors[0][1], self.monitors[0][2], self.monitors[0][3]
             x_v, y_v, w_v, h_v = self.monitors[1][0], self.monitors[1][1], self.monitors[1][2], self.monitors[1][3]
@@ -121,6 +141,7 @@ class System:
                                  self.monitors[0][3]
         user32.moveWindow(chrome, x_c, y_c, w_c, h_c, True)
         user32.moveWindow(vortex, x_v, y_v, w_v, h_v, True)
+        logging.info("Moved chrome and vortex windows")
 
 
 @click.command()
@@ -128,7 +149,18 @@ class System:
 @click.option('--vortex', is_flag=True, default=False, help='Enables vortex mode')
 @click.option('--verbose', is_flag=True, default=False, help='Enables verbose mode')
 def main(chrome, vortex, verbose):
-    agent = System(chrome, vortex, verbose)
+    if verbose:
+        logging.basicConfig(level=logging.INFO, handlers=[
+            logging.FileHandler("log.log"),
+            logging.StreamHandler()
+        ], format='[%(asctime)s - %(levelname)s] in %(funcName)s: %(message)s')
+    else:
+        logging.basicConfig(handlers=[
+            logging.FileHandler("log.log"),
+            logging.StreamHandler()
+        ], format='[%(asctime)s - %(levelname)s]: %(message)s', level=logging.ERROR)
+
+    agent = System(chrome, vortex)
     agent.scan()
 
 
