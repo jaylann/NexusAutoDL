@@ -3,6 +3,7 @@ import os
 import subprocess
 import time
 
+import click as click
 import cv2
 import mss
 import numpy as np
@@ -13,7 +14,7 @@ user32 = ctypes.windll.user32
 
 
 class System:
-    def __init__(self, chrome: bool = False, vortex: bool = False):
+    def __init__(self, chrome: bool = False, vortex: bool = False, verbose: bool = False):
         self.monitors = self.getMonitors()
         self.vortex_btn, self.web_btn = self._load_assets()
         self.negative_displays = [m for m in self.monitors if m[0] < 0]
@@ -21,11 +22,14 @@ class System:
         self.negative_offset_y = sorted(self.monitors, key=lambda monitor: monitor[1])[0][1]
         self.biggest_display = sorted(self.monitors, key=lambda monitor: abs(monitor[0]))[-1]
         self.sift, self.vortex_desc, self.web_desc, self.matcher = self.init_detector()
+        if chrome:
+            self.prep_chrome()
+        self.vortex = vortex
+        self.verbose = verbose
 
     def captureScreen(self):
         with mss.mss() as sct:
             mon = sct.monitors[0]
-            print(self.biggest_display)
             monitor = {
                 "top": mon["top"],
                 "left": mon["left"],
@@ -79,12 +83,12 @@ class System:
         v_found = False
         while True:
             img = self.captureScreen()
-            if not v_found:
+            if not v_found and self.vortex:
                 vortex_loc = self.detect(img, self.vortex_desc, 40)
                 if vortex_loc:
                     self.click(vortex_loc[0], vortex_loc[1])
                     v_found = True
-            else:
+            elif v_found or not self.vortex:
                 web_loc = self.detect(img, self.web_desc, 40)
                 if web_loc:
                     self.click(web_loc[0], web_loc[1])
@@ -117,3 +121,16 @@ class System:
                                  self.monitors[0][3]
         user32.moveWindow(chrome, x_c, y_c, w_c, h_c, True)
         user32.moveWindow(vortex, x_v, y_v, w_v, h_v, True)
+
+
+@click.command()
+@click.option('--chrome', is_flag=True, default=False, help='Automatically move and size chrome and vortex windows')
+@click.option('--vortex', is_flag=True, default=False, help='Enables vortex mode')
+@click.option('--verbose', is_flag=True, default=False, help='Enables verbose mode')
+def main(chrome, vortex, verbose):
+    agent = System(chrome, vortex, verbose)
+    agent.scan()
+
+
+if __name__ == "__main__":
+    main()
