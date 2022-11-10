@@ -38,23 +38,27 @@ class System:
         self.sift, self.vortex_desc, self.web_desc, self.matcher = self.init_detector()
         logging.info("Initialized detector")
 
+        self.screen, self.v_monitor = self.init_screen_capture()
+
         if chrome:
             self.prep_chrome()
 
         self.vortex = vortex
 
+    def init_screen_capture(self):
+        screen = mss.mss()
+        mon = screen.monitors[0]
+        monitor = {
+            "top": mon["top"],
+            "left": mon["left"],
+            "width": mon["width"],
+            "height": abs(int(self.biggest_display[0] * (9 / 16))),
+            "mon": 0,
+        }
+        return screen, monitor
     def captureScreen(self):
-        with mss.mss() as sct:
-            mon = sct.monitors[0]
-            monitor = {
-                "top": mon["top"],
-                "left": mon["left"],
-                "width": mon["width"],
-                "height": abs(int(self.biggest_display[0] * (9 / 16))),
-                "mon": 0,
-            }
-            img = np.array(sct.grab(monitor))
-            return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = np.array(self.screen.grab(self.v_monitor))
+        return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     @staticmethod
     def getMonitors():
