@@ -160,7 +160,7 @@ class System:
                     web_loop = 0
                     if self.vortex:
                         w_found = True
-                if web_loop > 5:
+                elif web_loop > 5:
                     v_found = False
                     web_loop = 0
                 else:
