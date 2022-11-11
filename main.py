@@ -24,7 +24,7 @@ class System:
         logging.info(f"Found {len(self.monitors)} monitors")
         logging.info(f"Monitors: {self.monitors}")
 
-        self.vortex_btn, self.web_btn, self.click_btn = self._load_assets()
+        self.vortex_btn, self.web_btn, self.click_btn, self.understood_btn = self._load_assets()
         logging.info("Loaded assets")
 
         self.negative_displays = [m for m in self.monitors if m[0] < 0]
@@ -36,7 +36,7 @@ class System:
         self.biggest_display = sorted(self.monitors, key=lambda monitor: abs(monitor[0]))[-1]
         logging.info("Calculated offsets")
 
-        self.sift, self.vortex_desc, self.web_desc, self.click_desc, self.matcher = self.init_detector()
+        self.sift, self.vortex_desc, self.web_desc, self.click_desc, self.understood_desc, self.matcher = self.init_detector()
         logging.info("Initialized detector")
 
         self.screen, self.v_monitor = self.init_screen_capture()
@@ -77,7 +77,8 @@ class System:
         vortex_path = "assets/VortexDownloadButton.png"
         web_path = "assets/WebsiteDownloadButton.png"
         click_path = "assets/ClickHereButton.png"
-        for path in [vortex_path, web_path, click_path]:
+        understood_path = "assets/UnderstoodButton.png"
+        for path in [vortex_path, web_path, click_path, understood_path]:
             if os.path.isfile(path):
                 yield cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
             else:
@@ -110,11 +111,12 @@ class System:
         _, vortex_descriptors = sift.detectAndCompute(self.vortex_btn, mask=None)
         _, website_descriptors = sift.detectAndCompute(self.web_btn, mask=None)
         _, click_descriptors = sift.detectAndCompute(self.click_btn, mask=None)
+        _, understood_descriptors = sift.detectAndCompute(self.understood_btn, mask=None)
         logging.info("Initialized descriptors")
 
         matcher = cv2.BFMatcher()
 
-        return sift, vortex_descriptors, website_descriptors, click_descriptors, matcher
+        return sift, vortex_descriptors, website_descriptors, click_descriptors, understood_descriptors, matcher
 
     def detect(self, img, descriptors, threshold, bbox=None):
         screenshot_keypoints, screenshot_desc = self.sift.detectAndCompute(img, mask=None)
@@ -128,11 +130,14 @@ class System:
         point = np.median(points, axis=0)
         if not np.isnan(point).any():
             print(points)
+            cv2.imwrite("test.png", cv2.rectangle(img, (int(point[0] - 10), int(point[1] - 10)), (int(point[0] + 10), int(point[1] + 10)), (0, 255, 0), 2))
+
             return self.generate_click(int(point[0]), int(point[1]))
 
     def scan(self):
         v_found = False
         web_loop = 0
+        vortex_loop = 0
         w_found = False
         while True:
             img = self.captureScreen()
@@ -141,7 +146,12 @@ class System:
                 vortex_bbox[0], vortex_bbox[1] = self.monitor_to_image(vortex_bbox[0], vortex_bbox[1])
                 vortex_bbox[2], vortex_bbox[3] = self.monitor_to_image(vortex_bbox[2], vortex_bbox[3])
                 vortex_loc = self.detect(img, self.vortex_desc, 80, vortex_bbox)
-                if vortex_loc:
+                understood_btn_loc = self.detect(img, self.understood_desc, 80)
+                print(understood_btn_loc)
+                if understood_btn_loc:
+                    self.click(understood_btn_loc[0], understood_btn_loc[1])
+                    time.sleep(1)
+                if vortex_loc and vortex_loop <=3:
                     logging.info(f"Found vortex button at {vortex_loc}")
                     self.click(vortex_loc[0], vortex_loc[1])
                     v_found = True
@@ -149,6 +159,7 @@ class System:
                 click_loc = self.detect(img, self.click_desc, 40)
                 if click_loc:
                     logging.info(f"Found click button at {click_loc}")
+                    vortex_loop = 0
                     w_found = False
                     v_found = False
                     time.sleep(3)
