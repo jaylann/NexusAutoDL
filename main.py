@@ -87,7 +87,7 @@ class System:
             else:
                 raise FileNotFoundError(f"Asset {path} not found")
 
-    def generate_click(self, pos_x, pos_y):
+    def img_coords_to_mon_coords(self, pos_x, pos_y):
         if len(self.monitors) > 1:
             click_x = self.negative_offset_x + pos_x
             click_y = self.negative_offset_y + pos_y
@@ -97,7 +97,7 @@ class System:
 
         return click_x, click_y
 
-    def monitor_to_image(self, pos_x, pos_y):
+    def mon_coords_to_img_coords(self, pos_x, pos_y):
         if len(self.monitors) > 1:
             click_x = pos_x - self.negative_offset_x
             click_y = pos_y
@@ -136,7 +136,7 @@ class System:
 
         point = np.median(points, axis=0)
         if not np.isnan(point).any():
-            return self.generate_click(int(point[0]), int(point[1]))
+            return self.img_coords_to_mon_coords(int(point[0]), int(point[1]))
 
     def scan(self):
         v_found = False
@@ -149,18 +149,20 @@ class System:
             if not v_found and self.vortex:
                 vortex_bbox = list(self.get_vortex_bbox())
 
-                vortex_bbox[0], vortex_bbox[1] = self.monitor_to_image(vortex_bbox[0], vortex_bbox[1])
-                vortex_bbox[2], vortex_bbox[3] = self.monitor_to_image(vortex_bbox[2], vortex_bbox[3])
+                vortex_bbox[0], vortex_bbox[1] = self.mon_coords_to_img_coords(vortex_bbox[0], vortex_bbox[1])
+                vortex_bbox[2], vortex_bbox[3] = self.mon_coords_to_img_coords(vortex_bbox[2], vortex_bbox[3])
 
                 vortex_loc = self.detect(img, self.vortex_desc, 80, vortex_bbox)
                 understood_btn_loc = self.detect(img, self.understood_desc, 80)
                 staging_btn_loc = self.detect(img, self.staging_desc, 80)
 
                 if staging_btn_loc:
+                    logging.info(f"Staging button found at {staging_btn_loc}. Clicking...")
                     self.click(staging_btn_loc[0], staging_btn_loc[1])
                     time.sleep(1)
 
                 elif understood_btn_loc:
+                    logging.info(f"Understood button found at {understood_btn_loc}. Clicking...")
                     self.click(understood_btn_loc[0], understood_btn_loc[1])
                     time.sleep(1)
 
@@ -191,6 +193,7 @@ class System:
                         w_found = True
 
                 elif web_loop > 5:
+                    logging.info("Web button not found. Restarting...")
                     v_found = False
                     web_loop = 0
                 else:
@@ -207,7 +210,8 @@ class System:
         bbox[1] += bbox[3] * (1 / 5)
         bbox[2] -= bbox[2] * (1 / 5)
         bbox[3] -= bbox[3] * (1 / 5)
-
+        logging.info(f"Vortex bbox: {bbox}")
+        
         return bbox
 
     @staticmethod
