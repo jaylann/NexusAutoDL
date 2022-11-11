@@ -129,9 +129,6 @@ class System:
             points = np.array([p for p in points if bbox[0] < p[0] < bbox[2] and bbox[1] < p[1] < bbox[3]])
         point = np.median(points, axis=0)
         if not np.isnan(point).any():
-            print(points)
-            cv2.imwrite("test.png", cv2.rectangle(img, (int(point[0] - 10), int(point[1] - 10)), (int(point[0] + 10), int(point[1] + 10)), (0, 255, 0), 2))
-
             return self.generate_click(int(point[0]), int(point[1]))
 
     def scan(self):
