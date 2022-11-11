@@ -273,8 +273,9 @@ class System:
 @click.option('--vortex', is_flag=True, default=False, help='Enables vortex mode')
 @click.option('--verbose', is_flag=True, default=False, help='Enables verbose mode')
 def main(browser, vortex, verbose):
-    assert browser in ["chrome", "firefox"], f"Browser \'{browser}\' not supported"
+    assert browser in ["chrome", "firefox", None], f"Browser \'{browser}\' not supported"
     assert browser and vortex or not browser and not vortex, "Browser and vortex must be used together"
+
     if verbose:
         logging.basicConfig(level=logging.INFO, handlers=[
             logging.FileHandler("log.log"),
