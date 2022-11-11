@@ -222,33 +222,39 @@ class System:
         win32api.SetCursorPos(o_pos)
 
     def prep_chrome(self):
-
         subprocess.Popen(r'start chrome /new-tab about:blank', shell=True)
         logging.info("Opened chrome")
 
         time.sleep(0.4)
 
         chrome = user32.FindWindowW(None, u"about:blank - Google Chrome")
-        vortex = user32.FindWindowW(None, u"Vortex")
+
         user32.ShowWindow(chrome, 1)
-        user32.ShowWindow(vortex, 1)
-        logging.info("Found chrome and vortex windows")
+        logging.info("Found chrome window")
 
         if len(self.monitors) > 1:
             x_c, y_c, w_c, h_c = self.monitors[0][0], self.monitors[0][1], self.monitors[0][2], self.monitors[0][3]
-            x_v, y_v, w_v, h_v = self.monitors[1][0], self.monitors[1][1], self.monitors[1][2], self.monitors[1][3]
         else:
             x_c, y_c, w_c, h_c = 0, 0, self.monitors[0][2] / 2, self.monitors[0][3] / 2
+
+        win32gui.SetWindowPos(chrome, None, x_c, y_c, w_c, h_c, True)
+        user32.ShowWindow(chrome, 3)
+        logging.info("Moved chrome window")
+
+    def prep_vortex(self):
+        vortex = user32.FindWindowW(None, u"Vortex")
+        user32.ShowWindow(vortex, 1)
+        logging.info("Found vortex window")
+
+        if len(self.monitors) > 1:
+            x_v, y_v, w_v, h_v = self.monitors[1][0], self.monitors[1][1], self.monitors[1][2], self.monitors[1][3]
+        else:
             x_v, y_v, w_v, h_v = self.monitors[0][2] / 2, self.monitors[0][3] / 2, self.monitors[0][2], \
                 self.monitors[0][3]
 
-        win32gui.SetWindowPos(chrome, None, x_c, y_c, 500, 500, True)
-        win32gui.SetWindowPos(vortex, None, x_v, y_v, 500, 500, True)
-
-        user32.ShowWindow(chrome, 3)
+        win32gui.SetWindowPos(vortex, None, x_v, y_v, w_v, h_v, True)
         user32.ShowWindow(vortex, 3)
-
-        logging.info("Moved chrome and vortex windows")
+        logging.info("Moved vortex window")
 
 
 @click.command()
