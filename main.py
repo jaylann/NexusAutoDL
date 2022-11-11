@@ -15,10 +15,10 @@ user32 = ctypes.windll.user32
 
 
 class System:
-    def __init__(self, chrome: bool = False, vortex: bool = False, verbose: bool = False):
+    def __init__(self, browser: str = None, vortex: bool = False, verbose: bool = False):
 
         logging.info("Initializing system")
-        logging.info(f"Arguments: chrome={chrome}, vortex={vortex}, verbose={verbose}")
+        logging.info(f"Arguments: browser={browser}, vortex={vortex}, verbose={verbose}")
 
         self.monitors = self.getMonitors()
         logging.info(f"Found {len(self.monitors)} monitors")
@@ -42,8 +42,10 @@ class System:
 
         self.screen, self.v_monitor = self.init_screen_capture()
 
-        if chrome:
-            self.prep_chrome()
+        if browser:
+            self.prep_browser(browser.lower())
+        if vortex:
+            self.prep_vortex()
 
         self.vortex = vortex
         self.verbose = verbose
@@ -225,24 +227,27 @@ class System:
 
         win32api.SetCursorPos(o_pos)
 
-    def prep_chrome(self):
-        subprocess.Popen(r'start chrome /new-tab about:blank', shell=True)
-        logging.info("Opened chrome")
+    def prep_browser(self, browser):
+        commands = {"chrome": r'start chrome about:blank', "firefox": r'start firefox'}
+        win_name = {"chrome": "about:blank - Google Chrome", "firefox": "Mozilla Firefox"}
 
+        if browser not in commands.keys():
+            raise ValueError(f"Browser \'{browser}\' not supported")
+
+        subprocess.Popen(commands[browser], shell=True)
         time.sleep(0.4)
+        h_browser = user32.FindWindowW(None, win_name[browser])
 
-        chrome = user32.FindWindowW(None, u"about:blank - Google Chrome")
-
-        user32.ShowWindow(chrome, 1)
-        logging.info("Found chrome window")
+        user32.ShowWindow(h_browser, 1)
+        logging.info("Found Firefox window")
 
         if len(self.monitors) > 1:
-            x_c, y_c, w_c, h_c = self.monitors[0][0], self.monitors[0][1], self.monitors[0][2], self.monitors[0][3]
+            x_b, y_b, w_b, h_b = self.monitors[0][0], self.monitors[0][1], self.monitors[0][2], self.monitors[0][3]
         else:
-            x_c, y_c, w_c, h_c = 0, 0, self.monitors[0][2] / 2, self.monitors[0][3] / 2
+            x_b, y_b, w_b, h_b = 0, 0, self.monitors[0][2] / 2, self.monitors[0][3] / 2
 
-        win32gui.SetWindowPos(chrome, None, x_c, y_c, w_c, h_c, True)
-        user32.ShowWindow(chrome, 3)
+        win32gui.SetWindowPos(h_browser, None, x_b, y_b, w_b, h_b, True)
+        user32.ShowWindow(h_browser, 3)
         logging.info("Moved chrome window")
 
     def prep_vortex(self):
@@ -262,10 +267,14 @@ class System:
 
 
 @click.command()
-@click.option('--chrome', is_flag=True, default=True, help='Automatically move and size chrome and vortex windows')
-@click.option('--vortex', is_flag=True, default=True, help='Enables vortex mode')
-@click.option('--verbose', is_flag=True, default=True, help='Enables verbose mode')
-def main(chrome, vortex, verbose):
+@click.option('--browser', is_flag=False, default=None, help='Specifies browser to automatically move next to Vortex. '
+                                                            'Only works with --vortex. Supported browsers: chrome, '
+                                                            'firefox')
+@click.option('--vortex', is_flag=True, default=False, help='Enables vortex mode')
+@click.option('--verbose', is_flag=True, default=False, help='Enables verbose mode')
+def main(browser, vortex, verbose):
+    assert browser in ["chrome", "firefox"], f"Browser \'{browser}\' not supported"
+    assert browser and vortex or not browser and not vortex, "Browser and vortex must be used together"
     if verbose:
         logging.basicConfig(level=logging.INFO, handlers=[
             logging.FileHandler("log.log"),
@@ -277,7 +286,7 @@ def main(chrome, vortex, verbose):
             logging.StreamHandler()
         ], format='[%(asctime)s - %(levelname)s]: %(message)s', level=logging.ERROR)
 
-    agent = System(chrome, vortex, verbose)
+    agent = System(browser, vortex, verbose)
     agent.scan()
 
 
