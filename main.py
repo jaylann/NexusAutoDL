@@ -37,7 +37,7 @@ class System:
         logging.info("Calculated offsets")
 
         self.sift, self.vortex_desc, self.web_desc, self.click_desc, self.understood_desc, \
-            self.staging_desc, self.matcher = self.init_detector()
+        self.staging_desc, self.matcher = self.init_detector()
         logging.info("Initialized detector")
 
         self.screen, self.v_monitor = self.init_screen_capture()
@@ -54,11 +54,14 @@ class System:
         screen = mss.mss()
         mon = screen.monitors[0]
 
+        aspect_ratio = self.monitors[0][2] / self.monitors[0][3] if not self.negative_displays \
+            else self.monitors[-1][2] / self.monitors[-1][3]
+
         monitor = {
             "top": mon["top"],
             "left": mon["left"],
             "width": mon["width"],
-            "height": abs(int(self.biggest_display[0] * (9 / 16))),
+            "height": abs(int(self.biggest_display[0] * (aspect_ratio**-1))),
             "mon": 0,
         }
         logging.info(f"Initialized screen capture with monitor: {monitor}")
@@ -123,7 +126,7 @@ class System:
         matcher = cv2.BFMatcher()
 
         return sift, vortex_descriptors, website_descriptors, click_descriptors, understood_descriptors, \
-            staging_descriptors, matcher
+               staging_descriptors, matcher
 
     def detect(self, img, descriptors, threshold, bbox=None):
         screenshot_keypoints, screenshot_desc = self.sift.detectAndCompute(img, mask=None)
@@ -150,6 +153,12 @@ class System:
 
             if not v_found and self.vortex:
                 vortex_bbox = list(self.get_vortex_bbox())
+
+                # Pad borders to ignore possible mismatches
+                vortex_bbox[0] += vortex_bbox[2] * (1 / 5)
+                vortex_bbox[1] += vortex_bbox[3] * (1 / 5)
+                vortex_bbox[2] -= vortex_bbox[2] * (1 / 5)
+                vortex_bbox[3] -= vortex_bbox[3] * (1 / 5)
 
                 vortex_bbox[0], vortex_bbox[1] = self.mon_coords_to_img_coords(vortex_bbox[0], vortex_bbox[1])
                 vortex_bbox[2], vortex_bbox[3] = self.mon_coords_to_img_coords(vortex_bbox[2], vortex_bbox[3])
@@ -208,12 +217,8 @@ class System:
     def get_vortex_bbox():
         vortex = user32.FindWindowW(None, u"Vortex")
         bbox = list(win32gui.GetWindowRect(vortex))
-        bbox[0] += bbox[2] * (1 / 5)
-        bbox[1] += bbox[3] * (1 / 5)
-        bbox[2] -= bbox[2] * (1 / 5)
-        bbox[3] -= bbox[3] * (1 / 5)
         logging.info(f"Vortex bbox: {bbox}")
-        
+
         return bbox
 
     @staticmethod
@@ -259,7 +264,7 @@ class System:
             x_v, y_v, w_v, h_v = self.monitors[1][0], self.monitors[1][1], self.monitors[1][2], self.monitors[1][3]
         else:
             x_v, y_v, w_v, h_v = self.monitors[0][2] / 2, self.monitors[0][3] / 2, self.monitors[0][2], \
-                self.monitors[0][3]
+                                 self.monitors[0][3]
 
         win32gui.SetWindowPos(vortex, None, x_v, y_v, w_v, h_v, True)
         user32.ShowWindow(vortex, 3)
@@ -268,8 +273,8 @@ class System:
 
 @click.command()
 @click.option('--browser', is_flag=False, default=None, help='Specifies browser to automatically move next to Vortex. '
-                                                            'Only works with --vortex. Supported browsers: chrome, '
-                                                            'firefox')
+                                                             'Only works with --vortex. Supported browsers: chrome, '
+                                                             'firefox')
 @click.option('--vortex', is_flag=True, default=False, help='Enables vortex mode')
 @click.option('--verbose', is_flag=True, default=False, help='Enables verbose mode')
 def main(browser, vortex, verbose):
