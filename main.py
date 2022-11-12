@@ -27,17 +27,19 @@ class System:
         self.vortex_btn, self.web_btn, self.click_btn, self.understood_btn, self.staging_btn = self._load_assets()
         logging.info("Loaded assets")
 
+        # Check if there are displays left of the primary display which makes their coordinates negative
         self.negative_displays = [m for m in self.monitors if m[0] < 0]
         logging.info(f"Found {len(self.negative_displays)} negative displays")
         logging.info(f"Negative displays: {self.negative_displays}")
 
         self.negative_offset_x = sum([m[0] for m in self.negative_displays])
         self.negative_offset_y = sorted(self.monitors, key=lambda monitor: monitor[1])[0][1]
+
         self.biggest_display = sorted(self.monitors, key=lambda monitor: abs(monitor[0]))[-1]
         logging.info("Calculated offsets")
 
         self.sift, self.vortex_desc, self.web_desc, self.click_desc, self.understood_desc, \
-        self.staging_desc, self.matcher = self.init_detector()
+            self.staging_desc, self.matcher = self.init_detector()
         logging.info("Initialized detector")
 
         self.screen, self.v_monitor = self.init_screen_capture()
