@@ -20,7 +20,7 @@ class System:
         logging.info("Initializing system")
         logging.info(f"Arguments: browser={browser}, vortex={vortex}, verbose={verbose}")
 
-        self.monitors = self.getMonitors()
+        self.monitors = self.get_monitors()
         logging.info(f"Found {len(self.monitors)} monitors")
         logging.info(f"Monitors: {self.monitors}")
 
@@ -39,10 +39,10 @@ class System:
         logging.info("Calculated offsets")
 
         self.sift, self.vortex_desc, self.web_desc, self.click_desc, self.understood_desc, \
-            self.staging_desc, self.matcher = self.init_detector()
+        self.staging_desc, self.matcher = self._init_detector()
         logging.info("Initialized detector")
 
-        self.screen, self.v_monitor = self.init_screen_capture()
+        self.screen, self.v_monitor = self._init_screen_capture()
 
         if browser:
             self.prep_browser(browser.lower())
@@ -52,7 +52,23 @@ class System:
         self.vortex = vortex
         self.verbose = verbose
 
-    def init_screen_capture(self):
+    def _init_detector(self):
+        logging.info("Initializing detector")
+        sift = cv2.SIFT_create()
+
+        _, vortex_descriptors = sift.detectAndCompute(self.vortex_btn, mask=None)
+        _, website_descriptors = sift.detectAndCompute(self.web_btn, mask=None)
+        _, click_descriptors = sift.detectAndCompute(self.click_btn, mask=None)
+        _, understood_descriptors = sift.detectAndCompute(self.understood_btn, mask=None)
+        _, staging_descriptors = sift.detectAndCompute(self.staging_btn, mask=None)
+        logging.info("Initialized descriptors")
+
+        matcher = cv2.BFMatcher()
+
+        return sift, vortex_descriptors, website_descriptors, click_descriptors, understood_descriptors, \
+               staging_descriptors, matcher
+
+    def _init_screen_capture(self):
         screen = mss.mss()
         mon = screen.monitors[0]
 
@@ -63,22 +79,12 @@ class System:
             "top": mon["top"],
             "left": mon["left"],
             "width": mon["width"],
-            "height": abs(int(self.biggest_display[0] * (aspect_ratio**-1))),
+            "height": abs(int(self.biggest_display[0] * (aspect_ratio ** -1))),
             "mon": 0,
         }
         logging.info(f"Initialized screen capture with monitor: {monitor}")
 
         return screen, monitor
-
-    def captureScreen(self):
-        img = np.array(self.screen.grab(self.v_monitor))
-        logging.info("Captured screen")
-
-        return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    @staticmethod
-    def getMonitors():
-        return sorted([monitor[2] for monitor in win32api.EnumDisplayMonitors(None, None)], key=lambda chunk: chunk[0])
 
     @staticmethod
     def _load_assets():
@@ -93,6 +99,50 @@ class System:
                 yield cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
             else:
                 raise FileNotFoundError(f"Asset {path} not found")
+
+    def capture_screen(self):
+        img = np.array(self.screen.grab(self.v_monitor))
+        logging.info("Captured screen")
+
+        return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    @staticmethod
+    def click(x, y):
+        o_pos = win32api.GetCursorPos()
+
+        win32api.SetCursorPos((x, y))
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
+        logging.info(f"Clicked at ({x}, {y})")
+
+        win32api.SetCursorPos(o_pos)
+
+    def detect(self, img, descriptors, threshold, bbox=None):
+        screenshot_keypoints, screenshot_desc = self.sift.detectAndCompute(img, mask=None)
+
+        matches = self.matcher.knnMatch(descriptors, screenshot_desc, k=2)
+
+        points = np.array([screenshot_keypoints[m.trainIdx].pt for m, _ in matches if m.distance < threshold]).astype(
+            np.int32)
+
+        if bbox:
+            points = np.array([p for p in points if bbox[0] < p[0] < bbox[2] and bbox[1] < p[1] < bbox[3]])
+
+        point = np.median(points, axis=0)
+        if not np.isnan(point).any():
+            return self.img_coords_to_mon_coords(int(point[0]), int(point[1]))
+
+    @staticmethod
+    def get_monitors():
+        return sorted([monitor[2] for monitor in win32api.EnumDisplayMonitors(None, None)], key=lambda chunk: chunk[0])
+
+    @staticmethod
+    def get_vortex_bbox():
+        vortex = user32.FindWindowW(None, u"Vortex")
+        bbox = list(win32gui.GetWindowRect(vortex))
+        logging.info(f"Vortex bbox: {bbox}")
+
+        return bbox
 
     def img_coords_to_mon_coords(self, pos_x, pos_y):
         if len(self.monitors) > 1:
@@ -114,36 +164,43 @@ class System:
 
         return click_x, click_y
 
-    def init_detector(self):
-        logging.info("Initializing detector")
-        sift = cv2.SIFT_create()
+    def prep_browser(self, browser):
+        commands = {"chrome": r'start chrome about:blank', "firefox": r'start firefox'}
+        win_name = {"chrome": "about:blank - Google Chrome", "firefox": "Mozilla Firefox"}
 
-        _, vortex_descriptors = sift.detectAndCompute(self.vortex_btn, mask=None)
-        _, website_descriptors = sift.detectAndCompute(self.web_btn, mask=None)
-        _, click_descriptors = sift.detectAndCompute(self.click_btn, mask=None)
-        _, understood_descriptors = sift.detectAndCompute(self.understood_btn, mask=None)
-        _, staging_descriptors = sift.detectAndCompute(self.staging_btn, mask=None)
-        logging.info("Initialized descriptors")
+        if browser not in commands.keys():
+            raise ValueError(f"Browser \'{browser}\' not supported")
 
-        matcher = cv2.BFMatcher()
+        subprocess.Popen(commands[browser], shell=True)
+        time.sleep(0.4)
+        h_browser = user32.FindWindowW(None, win_name[browser])
 
-        return sift, vortex_descriptors, website_descriptors, click_descriptors, understood_descriptors, \
-               staging_descriptors, matcher
+        user32.ShowWindow(h_browser, 1)
+        logging.info("Found Firefox window")
 
-    def detect(self, img, descriptors, threshold, bbox=None):
-        screenshot_keypoints, screenshot_desc = self.sift.detectAndCompute(img, mask=None)
+        if len(self.monitors) > 1:
+            x_b, y_b, w_b, h_b = self.monitors[0][0], self.monitors[0][1], self.monitors[0][2], self.monitors[0][3]
+        else:
+            x_b, y_b, w_b, h_b = 0, 0, self.monitors[0][2] / 2, self.monitors[0][3] / 2
 
-        matches = self.matcher.knnMatch(descriptors, screenshot_desc, k=2)
+        win32gui.SetWindowPos(h_browser, None, x_b, y_b, w_b, h_b, True)
+        user32.ShowWindow(h_browser, 3)
+        logging.info("Moved chrome window")
 
-        points = np.array([screenshot_keypoints[m.trainIdx].pt for m, _ in matches if m.distance < threshold]).astype(
-            np.int32)
+    def prep_vortex(self):
+        vortex = user32.FindWindowW(None, u"Vortex")
+        user32.ShowWindow(vortex, 1)
+        logging.info("Found vortex window")
 
-        if bbox:
-            points = np.array([p for p in points if bbox[0] < p[0] < bbox[2] and bbox[1] < p[1] < bbox[3]])
+        if len(self.monitors) > 1:
+            x_v, y_v, w_v, h_v = self.monitors[1][0], self.monitors[1][1], self.monitors[1][2], self.monitors[1][3]
+        else:
+            x_v, y_v, w_v, h_v = self.monitors[0][2] / 2, self.monitors[0][3] / 2, self.monitors[0][2], \
+                                 self.monitors[0][3]
 
-        point = np.median(points, axis=0)
-        if not np.isnan(point).any():
-            return self.img_coords_to_mon_coords(int(point[0]), int(point[1]))
+        win32gui.SetWindowPos(vortex, None, x_v, y_v, w_v, h_v, True)
+        user32.ShowWindow(vortex, 3)
+        logging.info("Moved vortex window")
 
     def scan(self):
         v_found = False
@@ -214,63 +271,6 @@ class System:
 
             logging.info("Waiting 2 seconds")
             time.sleep(2)
-
-    @staticmethod
-    def get_vortex_bbox():
-        vortex = user32.FindWindowW(None, u"Vortex")
-        bbox = list(win32gui.GetWindowRect(vortex))
-        logging.info(f"Vortex bbox: {bbox}")
-
-        return bbox
-
-    @staticmethod
-    def click(x, y):
-        o_pos = win32api.GetCursorPos()
-
-        win32api.SetCursorPos((x, y))
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
-        logging.info(f"Clicked at ({x}, {y})")
-
-        win32api.SetCursorPos(o_pos)
-
-    def prep_browser(self, browser):
-        commands = {"chrome": r'start chrome about:blank', "firefox": r'start firefox'}
-        win_name = {"chrome": "about:blank - Google Chrome", "firefox": "Mozilla Firefox"}
-
-        if browser not in commands.keys():
-            raise ValueError(f"Browser \'{browser}\' not supported")
-
-        subprocess.Popen(commands[browser], shell=True)
-        time.sleep(0.4)
-        h_browser = user32.FindWindowW(None, win_name[browser])
-
-        user32.ShowWindow(h_browser, 1)
-        logging.info("Found Firefox window")
-
-        if len(self.monitors) > 1:
-            x_b, y_b, w_b, h_b = self.monitors[0][0], self.monitors[0][1], self.monitors[0][2], self.monitors[0][3]
-        else:
-            x_b, y_b, w_b, h_b = 0, 0, self.monitors[0][2] / 2, self.monitors[0][3] / 2
-
-        win32gui.SetWindowPos(h_browser, None, x_b, y_b, w_b, h_b, True)
-        user32.ShowWindow(h_browser, 3)
-        logging.info("Moved chrome window")
-
-    def prep_vortex(self):
-        vortex = user32.FindWindowW(None, u"Vortex")
-        user32.ShowWindow(vortex, 1)
-        logging.info("Found vortex window")
-
-        if len(self.monitors) > 1:
-            x_v, y_v, w_v, h_v = self.monitors[1][0], self.monitors[1][1], self.monitors[1][2], self.monitors[1][3]
-        else:
-            x_v, y_v, w_v, h_v = self.monitors[0][2] / 2, self.monitors[0][3] / 2, self.monitors[0][2], \
-                                 self.monitors[0][3]
-
-        win32gui.SetWindowPos(vortex, None, x_v, y_v, w_v, h_v, True)
-        user32.ShowWindow(vortex, 3)
-        logging.info("Moved vortex window")
 
 
 @click.command()
