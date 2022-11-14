@@ -39,7 +39,7 @@ class System:
         logging.info("Calculated offsets")
 
         self.sift, self.vortex_desc, self.web_desc, self.click_desc, self.understood_desc, \
-        self.staging_desc, self.matcher = self._init_detector()
+            self.staging_desc, self.matcher = self._init_detector()
         logging.info("Initialized detector")
 
         self.screen, self.v_monitor = self._init_screen_capture()
@@ -66,7 +66,7 @@ class System:
         matcher = cv2.BFMatcher()
 
         return sift, vortex_descriptors, website_descriptors, click_descriptors, understood_descriptors, \
-               staging_descriptors, matcher
+            staging_descriptors, matcher
 
     def _init_screen_capture(self):
         screen = mss.mss()
