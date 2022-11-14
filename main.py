@@ -208,7 +208,7 @@ class System:
         web_loop = 0
 
         while True:
-            img = self.captureScreen()
+            img = self.capture_screen()
 
             if not v_found and self.vortex:
                 vortex_bbox = list(self.get_vortex_bbox())
