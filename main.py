@@ -79,9 +79,10 @@ class System:
             "top": mon["top"],
             "left": mon["left"],
             "width": mon["width"],
-            "height": abs(int(self.biggest_display[0] * (aspect_ratio ** -1))),
+            "height": abs(int(self.biggest_display[0] * (aspect_ratio ** -1))) if len(self.monitors) > 1 else mon["height"],
             "mon": 0,
         }
+        print(monitor)
         logging.info(f"Initialized screen capture with monitor: {monitor}")
 
         return screen, monitor
@@ -181,10 +182,11 @@ class System:
         if len(self.monitors) > 1:
             x_b, y_b, w_b, h_b = self.monitors[0][0], self.monitors[0][1], self.monitors[0][2], self.monitors[0][3]
         else:
-            x_b, y_b, w_b, h_b = 0, 0, self.monitors[0][2] / 2, self.monitors[0][3] / 2
+            x_b, y_b, w_b, h_b = 0, 0, self.monitors[0][2] // 2, self.monitors[0][3] // 2
 
         win32gui.SetWindowPos(h_browser, None, x_b, y_b, w_b, h_b, True)
-        user32.ShowWindow(h_browser, 3)
+        if len(self.monitors) > 1:
+            user32.ShowWindow(h_browser, 3)
         logging.info("Moved chrome window")
 
     def prep_vortex(self):
@@ -195,11 +197,12 @@ class System:
         if len(self.monitors) > 1:
             x_v, y_v, w_v, h_v = self.monitors[1][0], self.monitors[1][1], self.monitors[1][2], self.monitors[1][3]
         else:
-            x_v, y_v, w_v, h_v = self.monitors[0][2] / 2, self.monitors[0][3] / 2, self.monitors[0][2], \
+            x_v, y_v, w_v, h_v = self.monitors[0][2] // 2, self.monitors[0][3] // 2, self.monitors[0][2], \
                                  self.monitors[0][3]
 
         win32gui.SetWindowPos(vortex, None, x_v, y_v, w_v, h_v, True)
-        user32.ShowWindow(vortex, 3)
+        if len(self.monitors) > 1:
+            user32.ShowWindow(vortex, 3)
         logging.info("Moved vortex window")
 
     def scan(self):
@@ -212,12 +215,12 @@ class System:
 
             if not v_found and self.vortex:
                 vortex_bbox = list(self.get_vortex_bbox())
-
+                fac = 5+(5-vortex_bbox[0]/512)
                 # Pad borders to ignore possible mismatches
-                vortex_bbox[0] += vortex_bbox[2] * (1 / 5)
-                vortex_bbox[1] += vortex_bbox[3] * (1 / 5)
-                vortex_bbox[2] -= vortex_bbox[2] * (1 / 5)
-                vortex_bbox[3] -= vortex_bbox[3] * (1 / 5)
+                vortex_bbox[0] += vortex_bbox[2] * (1 / fac)
+                vortex_bbox[1] += vortex_bbox[3] * (1 / fac)
+                vortex_bbox[2] -= vortex_bbox[2] * (1 / fac)
+                vortex_bbox[3] -= vortex_bbox[3] * (1 / fac)
 
                 vortex_bbox[0], vortex_bbox[1] = self.mon_coords_to_img_coords(vortex_bbox[0], vortex_bbox[1])
                 vortex_bbox[2], vortex_bbox[3] = self.mon_coords_to_img_coords(vortex_bbox[2], vortex_bbox[3])
@@ -242,7 +245,7 @@ class System:
                     v_found = True
 
             elif w_found:
-                click_loc = self.detect(img, self.click_desc, 40)
+                click_loc = self.detect(img, self.click_desc, 80)
 
                 if click_loc:
                     logging.info(f"Found click button at {click_loc}")
@@ -251,7 +254,7 @@ class System:
                     time.sleep(3)
 
             elif v_found or not self.vortex:
-                web_loc = self.detect(img, self.web_desc, 40)
+                web_loc = self.detect(img, self.web_desc, 80)
 
                 if web_loc:
                     logging.info(f"Found web button at {web_loc}")
