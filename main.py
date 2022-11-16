@@ -15,12 +15,14 @@ user32 = ctypes.windll.user32
 
 
 class System:
-    def __init__(self, browser: str = None, vortex: bool = False, verbose: bool = False):
+    def __init__(self, browser: str = None, vortex: bool = False, verbose: bool = False, force_primary: bool = False):
 
         logging.info("Initializing system")
         logging.info(f"Arguments: browser={browser}, vortex={vortex}, verbose={verbose}")
 
         self.monitors = self.get_monitors()
+        if force_primary:
+            self.monitors = [self.monitors[0]]
         logging.info(f"Found {len(self.monitors)} monitors")
         logging.info(f"Monitors: {self.monitors}")
 
@@ -52,7 +54,7 @@ class System:
         self.vortex = vortex
         self.verbose = verbose
 
-    def _init_detector(self):
+    def _init_detector(self) -> (cv2.xfeatures2d.SIFT_create, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, cv2.BFMatcher):
         logging.info("Initializing detector")
         sift = cv2.SIFT_create()
 
@@ -68,7 +70,7 @@ class System:
         return sift, vortex_descriptors, website_descriptors, click_descriptors, understood_descriptors, \
             staging_descriptors, matcher
 
-    def _init_screen_capture(self):
+    def _init_screen_capture(self) -> (mss.mss, dict):
         screen = mss.mss()
         mon = screen.monitors[0]
 
@@ -82,13 +84,12 @@ class System:
             "height": abs(int(self.biggest_display[0] * (aspect_ratio ** -1))) if len(self.monitors) > 1 else mon["height"],
             "mon": 0,
         }
-        print(monitor)
         logging.info(f"Initialized screen capture with monitor: {monitor}")
 
         return screen, monitor
 
     @staticmethod
-    def _load_assets():
+    def _load_assets() -> (np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray):
         vortex_path = "assets/VortexDownloadButton.png"
         web_path = "assets/WebsiteDownloadButton.png"
         click_path = "assets/ClickHereButton.png"
@@ -101,7 +102,7 @@ class System:
             else:
                 raise FileNotFoundError(f"Asset {path} not found")
 
-    def capture_screen(self):
+    def capture_screen(self) -> np.ndarray:
         img = np.array(self.screen.grab(self.v_monitor))
         logging.info("Captured screen")
 
@@ -118,7 +119,7 @@ class System:
 
         win32api.SetCursorPos(o_pos)
 
-    def detect(self, img, descriptors, threshold, bbox=None):
+    def detect(self, img, descriptors, threshold, bbox=None) -> tuple[int, int]:
         screenshot_keypoints, screenshot_desc = self.sift.detectAndCompute(img, mask=None)
 
         matches = self.matcher.knnMatch(descriptors, screenshot_desc, k=2)
@@ -134,18 +135,18 @@ class System:
             return self.img_coords_to_mon_coords(int(point[0]), int(point[1]))
 
     @staticmethod
-    def get_monitors():
+    def get_monitors() -> list[tuple[int, int, int, int]]:
         return sorted([monitor[2] for monitor in win32api.EnumDisplayMonitors(None, None)], key=lambda chunk: chunk[0])
 
     @staticmethod
-    def get_vortex_bbox():
+    def get_vortex_bbox() -> list[int, int, int, int]:
         vortex = user32.FindWindowW(None, u"Vortex")
         bbox = list(win32gui.GetWindowRect(vortex))
         logging.info(f"Vortex bbox: {bbox}")
 
         return bbox
 
-    def img_coords_to_mon_coords(self, pos_x, pos_y):
+    def img_coords_to_mon_coords(self, pos_x, pos_y) -> tuple[int, int]:
         if len(self.monitors) > 1:
             click_x = self.negative_offset_x + pos_x
             click_y = self.negative_offset_y + pos_y
@@ -155,7 +156,7 @@ class System:
 
         return click_x, click_y
 
-    def mon_coords_to_img_coords(self, pos_x, pos_y):
+    def mon_coords_to_img_coords(self, pos_x, pos_y) -> tuple[int, int]:
         if len(self.monitors) > 1:
             click_x = pos_x - self.negative_offset_x
             click_y = pos_y
@@ -282,7 +283,8 @@ class System:
                                                              'firefox')
 @click.option('--vortex', is_flag=True, default=False, help='Enables vortex mode')
 @click.option('--verbose', is_flag=True, default=False, help='Enables verbose mode')
-def main(browser, vortex, verbose):
+@click.option('--force-primary', is_flag=True, default=False, help='Forces the script to use the primary monitor')
+def main(browser, vortex, verbose, force_primary):
     assert browser in ["chrome", "firefox", None], f"Browser \'{browser}\' not supported"
     assert browser and vortex or not browser and not vortex, "Browser and vortex must be used together"
 
@@ -297,7 +299,7 @@ def main(browser, vortex, verbose):
             logging.StreamHandler()
         ], format='[%(asctime)s - %(levelname)s]: %(message)s', level=logging.ERROR)
 
-    agent = System(browser, vortex, verbose)
+    agent = System(browser, vortex, verbose, force_primary)
     agent.scan()
 
 
