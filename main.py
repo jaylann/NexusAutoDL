@@ -54,7 +54,7 @@ class System:
         self.vortex = vortex
         self.verbose = verbose
 
-    def _init_detector(self) -> (cv2.xfeatures2d.SIFT_create, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, cv2.BFMatcher):
+    def _init_detector(self):
         logging.info("Initializing detector")
         sift = cv2.SIFT_create()
 
