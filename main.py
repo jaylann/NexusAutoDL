@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import ctypes
 import os
 import subprocess
@@ -44,7 +45,7 @@ class System:
         logging.info("Calculated offsets")
 
         self.sift, self.vortex_desc, self.web_desc, self.click_desc, self.understood_desc, \
-            self.staging_desc, self.matcher = self._init_detector()
+        self.staging_desc, self.matcher = self._init_detector()
         logging.info("Initialized detector")
 
         self.screen, self.v_monitor = self._init_screen_capture()
@@ -71,13 +72,11 @@ class System:
         matcher = cv2.BFMatcher()
 
         return sift, vortex_descriptors, website_descriptors, click_descriptors, understood_descriptors, \
-            staging_descriptors, matcher
+               staging_descriptors, matcher
 
     def _init_screen_capture(self) -> (mss.mss, dict):
         screen = mss.mss()
         mon = screen.monitors[0]
-        print(mon)
-
 
         aspect_ratio = self.monitors[0][2] / self.monitors[0][3] if not self.negative_displays \
             else self.monitors[-1][2] / self.monitors[-1][3]
@@ -85,7 +84,8 @@ class System:
             "top": sorted(self.monitors, key=lambda chunk: chunk[1])[0][1],
             "left": sorted(self.monitors, key=lambda chunk: chunk[0])[0][0],
             "width": sum([abs(m[2]) for m in self.monitors]),
-            "height": abs(int(self.biggest_display[0] * (aspect_ratio ** -1))) if len(self.monitors) > 1 else self.monitors[0][3],
+            "height": abs(int(self.biggest_display[0] * (aspect_ratio ** -1))) if len(self.monitors) > 1 else
+            self.monitors[0][3],
             "mon": 0,
         }
         logging.info(f"Initialized screen capture with monitor: {monitor}")
@@ -141,7 +141,6 @@ class System:
     @staticmethod
     def get_monitors() -> list[tuple[int, int, int, int]]:
         return [monitor[2] for monitor in win32api.EnumDisplayMonitors(None, None)]
-
 
     @staticmethod
     def get_vortex_bbox() -> list[int, int, int, int]:
@@ -212,7 +211,7 @@ class System:
 
             if not v_found and self.vortex:
                 vortex_bbox = list(self.get_vortex_bbox())
-                fac = 5+(5-vortex_bbox[0]/512)
+                fac = 5 + (5 - vortex_bbox[0] / 512)
                 # Pad borders to ignore possible mismatches
                 vortex_bbox[0] += vortex_bbox[2] * (1 / fac)
                 vortex_bbox[1] += vortex_bbox[3] * (1 / fac)
