@@ -23,6 +23,8 @@ class System:
         self.monitors = self.get_monitors()
         if force_primary:
             self.monitors = [self.monitors[0]]
+        else:
+            self.monitors = sorted(self.monitors, key=lambda chunk: chunk[0])
         logging.info(f"Found {len(self.monitors)} monitors")
         logging.info(f"Monitors: {self.monitors}")
 
@@ -38,6 +40,7 @@ class System:
         self.negative_offset_y = sorted(self.monitors, key=lambda monitor: monitor[1])[0][1]
 
         self.biggest_display = sorted(self.monitors, key=lambda monitor: abs(monitor[0]))[-1]
+        logging.info(f"Biggest display: {self.biggest_display}")
         logging.info("Calculated offsets")
 
         self.sift, self.vortex_desc, self.web_desc, self.click_desc, self.understood_desc, \
@@ -73,15 +76,16 @@ class System:
     def _init_screen_capture(self) -> (mss.mss, dict):
         screen = mss.mss()
         mon = screen.monitors[0]
+        print(mon)
+
 
         aspect_ratio = self.monitors[0][2] / self.monitors[0][3] if not self.negative_displays \
             else self.monitors[-1][2] / self.monitors[-1][3]
-
         monitor = {
-            "top": mon["top"],
-            "left": mon["left"],
-            "width": mon["width"],
-            "height": abs(int(self.biggest_display[0] * (aspect_ratio ** -1))) if len(self.monitors) > 1 else mon["height"],
+            "top": sorted(self.monitors, key=lambda chunk: chunk[1])[0][1],
+            "left": sorted(self.monitors, key=lambda chunk: chunk[0])[0][0],
+            "width": sum([abs(m[2]) for m in self.monitors]),
+            "height": abs(int(self.biggest_display[0] * (aspect_ratio ** -1))) if len(self.monitors) > 1 else self.monitors[0][3],
             "mon": 0,
         }
         logging.info(f"Initialized screen capture with monitor: {monitor}")
@@ -136,7 +140,8 @@ class System:
 
     @staticmethod
     def get_monitors() -> list[tuple[int, int, int, int]]:
-        return sorted([monitor[2] for monitor in win32api.EnumDisplayMonitors(None, None)], key=lambda chunk: chunk[0])
+        return [monitor[2] for monitor in win32api.EnumDisplayMonitors(None, None)]
+
 
     @staticmethod
     def get_vortex_bbox() -> list[int, int, int, int]:
@@ -177,32 +182,23 @@ class System:
         time.sleep(0.4)
         h_browser = user32.FindWindowW(None, win_name[browser])
 
-        user32.ShowWindow(h_browser, 1)
         logging.info("Found Firefox window")
 
         if len(self.monitors) > 1:
+            user32.ShowWindow(h_browser, 1)
             x_b, y_b, w_b, h_b = self.monitors[0][0], self.monitors[0][1], self.monitors[0][2], self.monitors[0][3]
-        else:
-            x_b, y_b, w_b, h_b = 0, 0, self.monitors[0][2] // 2, self.monitors[0][3] // 2
-
-        win32gui.SetWindowPos(h_browser, None, x_b, y_b, w_b, h_b, True)
-        if len(self.monitors) > 1:
+            win32gui.SetWindowPos(h_browser, None, x_b, y_b, w_b, h_b, True)
             user32.ShowWindow(h_browser, 3)
         logging.info("Moved chrome window")
 
     def prep_vortex(self):
         vortex = user32.FindWindowW(None, u"Vortex")
-        user32.ShowWindow(vortex, 1)
         logging.info("Found vortex window")
 
         if len(self.monitors) > 1:
+            user32.ShowWindow(vortex, 1)
             x_v, y_v, w_v, h_v = self.monitors[1][0], self.monitors[1][1], self.monitors[1][2], self.monitors[1][3]
-        else:
-            x_v, y_v, w_v, h_v = self.monitors[0][2] // 2, self.monitors[0][3] // 2, self.monitors[0][2], \
-                                 self.monitors[0][3]
-
-        win32gui.SetWindowPos(vortex, None, x_v, y_v, w_v, h_v, True)
-        if len(self.monitors) > 1:
+            win32gui.SetWindowPos(vortex, None, x_v, y_v, w_v, h_v, True)
             user32.ShowWindow(vortex, 3)
         logging.info("Moved vortex window")
 
@@ -226,7 +222,7 @@ class System:
                 vortex_bbox[0], vortex_bbox[1] = self.mon_coords_to_img_coords(vortex_bbox[0], vortex_bbox[1])
                 vortex_bbox[2], vortex_bbox[3] = self.mon_coords_to_img_coords(vortex_bbox[2], vortex_bbox[3])
 
-                vortex_loc = self.detect(img, self.vortex_desc, 80, vortex_bbox)
+                vortex_loc = self.detect(img, self.vortex_desc, 100, vortex_bbox)
                 understood_btn_loc = self.detect(img, self.understood_desc, 80)
                 staging_btn_loc = self.detect(img, self.staging_desc, 80)
 
@@ -255,7 +251,7 @@ class System:
                     time.sleep(3)
 
             elif v_found or not self.vortex:
-                web_loc = self.detect(img, self.web_desc, 80)
+                web_loc = self.detect(img, self.web_desc, 100)
 
                 if web_loc:
                     logging.info(f"Found web button at {web_loc}")
