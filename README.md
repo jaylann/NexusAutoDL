@@ -43,6 +43,9 @@ supported browsers: “chrome”, “firefox”`
 - `--verbose: prints verbose output`
 - `--force-primary: forces a system with multiple monitors to only be scanned on it’s primary display`
 
+# Demo
+https://user-images.githubusercontent.com/61842101/202874471-d5700912-16fd-4b7e-ab3f-0b97d05f6d9e.mp4
+
 # Credit
 Credit goes to [nexus-autodl](https://github.com/parsiad/nexus-autodl) for inspiring this project.
 
