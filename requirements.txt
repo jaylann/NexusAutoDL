@@ -3,6 +3,6 @@ colorama==0.4.6
 mss==7.0.1
 numpy==1.23.4
 opencv-python==4.6.0.66
-Pillow==10.0.1
+Pillow==10.2.0
 pywin32==305
 win32gui==221.6
