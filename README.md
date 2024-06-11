@@ -5,7 +5,7 @@ This tool is designed for automating the process of downloading mods from [Nexus
 This tool offers a plethora of different features. It is designed to work with multiple screens and even has a browser integration. If you’re working with multiple monitors and are also using Vortex, this tool has the ability to open and move your primary browser and your Vortex instance, so that you can start downloading right away. In addition, this tool offers Interruption Detection. As Vortex sometimes throws errors or otherwise asks the user for input. These interruptions will be detected and circumvented.
 
 # Prerequisites
-First you will need to have Python installed.
+First you will need to have Python 3.9 installed.
 
 Then when running the script either on one monitor, or with --force-primary enabled, as well as --vortex enabled, you will need to make sure that both the Vortex Mod Manager window and your Browser window are visible at the same time.
 
