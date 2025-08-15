@@ -51,3 +51,9 @@ Credit goes to [nexus-autodl](https://github.com/parsiad/nexus-autodl) for inspi
 
 # Disclaimer
 Nexusmods TOS state that using an automated program to download mods is prohibited. By using this software you are doing so at your own risk. The Author is not responsible for any kind of consequences and damages that might occur by using this program.
+
+---
+<p align="center">
+  Made with ❤️ by <a href="https://lanfermann.dev">Justin Lanfermann</a>
+</p>
+
