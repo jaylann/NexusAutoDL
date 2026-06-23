@@ -3,21 +3,21 @@
 # Use version ranges to avoid conflicts
 
 # Core dependencies
-click>=8.1.0,<9.0.0
+click>=8.4.1,<9.0.0
 colorama>=0.4.6,<0.5.0
-mss>=7.0.0,<8.0.0
+mss>=10.2.0,<11.0.0
 
 # Image processing - using ranges for better compatibility
-numpy>=1.24.0,<3.0.0
-opencv-python>=4.8.0,<5.0.0
-Pillow>=10.0.0,<11.0.0
+numpy>=2.5.0,<3.0.0
+opencv-python>=4.13.0.92,<5.0.0
+Pillow>=12.2.0,<13.0.0
 
 # Windows support
-pywin32>=305; sys_platform == 'win32'
+pywin32>=312; sys_platform == 'win32'
 
 # Data validation - Pydantic v2
-pydantic>=2.8.0,<3.0.0
-pydantic-settings>=2.3.0,<3.0.0
+pydantic>=2.13.4,<3.0.0
+pydantic-settings>=2.14.2,<3.0.0
 
 # Logging
-loguru>=0.7.0,<1.0.0
+loguru>=0.7.3,<1.0.0
