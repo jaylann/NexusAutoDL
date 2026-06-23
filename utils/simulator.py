@@ -3,6 +3,8 @@ Simulation mode for testing without Windows or actual buttons.
 Generates fake detections and runs the full TUI interface.
 """
 
+from __future__ import annotations
+
 import asyncio
 from loguru import logger
 import random

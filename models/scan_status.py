@@ -1,5 +1,7 @@
 """Scan status model."""
 
+from __future__ import annotations
+
 from pydantic import BaseModel, Field
 
 from models.scan_state import ScanState

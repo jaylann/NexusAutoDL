@@ -2,6 +2,8 @@
 Screen capture and coordinate conversion utilities.
 """
 
+from __future__ import annotations
+
 from loguru import logger
 
 import cv2

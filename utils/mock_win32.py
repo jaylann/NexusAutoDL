@@ -3,6 +3,8 @@ Mock win32 API for testing on non-Windows platforms.
 Provides simulated window management and mouse control.
 """
 
+from __future__ import annotations
+
 import logging
 import random
 from typing import Optional

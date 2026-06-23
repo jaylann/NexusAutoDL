@@ -7,6 +7,13 @@ Run this after installation to check the setup.
 import sys
 from typing import List
 
+# Ensure Unicode status glyphs print on Windows consoles (cp1252 by default).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+
 
 def validate_imports() -> List[str]:
     """Validate all module imports."""
