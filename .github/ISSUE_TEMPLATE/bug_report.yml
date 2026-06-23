@@ -1,0 +1,83 @@
+name: Bug report
+description: Report something not working (e.g. a button not being detected or clicked)
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! Most detection/click issues come down to display
+        setup, so please fill in the environment fields below as completely as you can.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+      placeholder: The Vortex "Download manually" button was not clicked...
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS / version
+      placeholder: Windows 11 23H2
+    validations:
+      required: true
+  - type: input
+    id: resolution
+    attributes:
+      label: Screen resolution
+      placeholder: 2560x1440
+    validations:
+      required: true
+  - type: input
+    id: dpi
+    attributes:
+      label: Display scaling (DPI %)
+      placeholder: 100% / 125% / 150%
+    validations:
+      required: true
+  - type: dropdown
+    id: monitors
+    attributes:
+      label: Monitor setup
+      options:
+        - Single monitor
+        - Multiple monitors
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options:
+        - Chrome
+        - Firefox
+        - Other / not applicable
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - Vortex
+        - Wabbajack
+        - Direct browser download
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command / flags used
+      placeholder: python main.py --vortex --browser chrome
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: A screenshot of the screen where detection failed is extremely helpful (and may become a test fixture).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Paste from nexus_autodl.log if available.
+      render: shell

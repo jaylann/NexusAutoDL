@@ -31,6 +31,7 @@ logger = get_logger(__name__)
 
 VORTEX_WEB_RETRY_LIMIT = 3  # Attempts before falling back to Vortex search
 
+
 class Scanner:
     """Orchestrates the scanning and clicking process."""
 

@@ -1,0 +1,77 @@
+name: CI
+
+# Use `pull_request` (NOT `pull_request_target`) so PRs from forks run without
+# access to repository secrets. This is the key safety property for a public repo.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege for GITHUB_TOKEN regardless of repo default.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint
+        run: ruff check .
+      - name: Format check
+        run: ruff format --check .
+
+  type:
+    runs-on: ubuntu-latest
+    # Non-blocking until the codebase is fully typed; flip to required later.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install mypy
+      - name: Type check
+        run: mypy . || true
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.9", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+      - name: Sanity validation
+        run: python validate.py
+      - name: Run tests
+        # Tests live under tests/; tolerate "no tests collected" (exit 5) until
+        # the suite exists.
+        shell: bash
+        run: |
+          if [ -d tests ]; then
+            pytest -q
+          else
+            echo "No tests/ directory yet - skipping pytest."
+          fi
