@@ -16,3 +16,6 @@ build/
 # Logs / runtime artifacts
 *.log
 nexus_autodl.log
+
+# macOS
+.DS_Store
