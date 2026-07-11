@@ -1,13 +1,22 @@
 """Generate deterministic synthetic detection fixtures.
 
 Composites each button template onto gradient backgrounds at known (x, y)
-positions and a few scales (proxying DPI scaling), then writes the images plus
-matching ``cases.json`` entries with exact ground-truth points. Backgrounds are
-deterministic gradients (no RNG), so output is byte-stable and CI reproducible.
+positions and several scales (proxying DPI scaling), then writes the images
+plus matching ``cases.json`` entries with exact ground-truth points. All
+randomness is seeded, so output is byte-stable and CI reproducible.
 
 The asset composited for VORTEX/WEBSITE is the *New* template -- the one the
 detector actually matches against in default (non-legacy) mode -- so synthetic
 matches reflect production behaviour rather than the legacy fallback.
+
+Case families:
+
+* clean:    each type at scales 0.75-1.5 (sub-1.0 exercises the NCC fallback)
+* noise:    Gaussian noise (sigma=4) over the scale-1.0 composite
+* jpeg:     JPEG quality-70 round-trip of the scale-1.0 composite
+* clutter:  target plus two non-target templates in one frame
+* absent:   button-free frames, cross-template negatives (a frame containing
+            only OTHER button types must yield None) and clutter negatives
 
 Run from the repo root:
 
@@ -38,13 +47,37 @@ _TEMPLATE_ASSET: dict[ButtonType, str] = {
     ButtonType.STAGING: "StagingButton.png",
 }
 
-# Scale factors proxy DPI scaling. We stay >= 1.0 because downscaling small
-# templates (e.g. UnderstoodButton) below their native size drops SIFT features
-# under min_matches -- high-DPI rendering enlarges buttons anyway, so upscaling
-# is the realistic direction to exercise here.
-_SCALES = (1.0, 1.25, 1.5)
+# Types whose templates depict the SAME visual button: WabbajackDownloadButton
+# and WebsiteDownloadButtonNew are both the Nexus "Slow download" button at
+# different sizes. Detecting one where the other sits is correct behaviour, so
+# no cross-template negative may pair them.
+_EQUIVALENT_TYPES: tuple[frozenset[ButtonType], ...] = (
+    frozenset({ButtonType.WABBAJACK, ButtonType.WEBSITE}),
+)
+
+
+def _equivalent(a: ButtonType, b: ButtonType) -> bool:
+    return a == b or any({a, b} <= group for group in _EQUIVALENT_TYPES)
+
+
+# Scale factors proxy DPI scaling in both directions. Sub-1.0 scales starve
+# SIFT on small templates; the detector's template-matching fallback covers
+# them, and these cases keep it honest.
+_SCALES = (0.75, 0.85, 1.0, 1.25, 1.5)
 _CANVAS = (1280, 720)
 _PASTE_XY = (480, 300)
+# Distractor positions for clutter scenes; chosen so even the widest template
+# (466 px) fits the canvas and cannot overlap the target at _PASTE_XY.
+_CLUTTER_XY = ((100, 100), (700, 550))
+
+# Tolerances: the projected-center click point is sub-pixel accurate on clean
+# composites; degradation and clutter get a little slack.
+_TOL_CLEAN = 10
+_TOL_DEGRADED = 15
+
+_NOISE_SEED = 1234
+_NOISE_SIGMA = 4.0
+_JPEG_QUALITY = 70
 
 
 def _save_rgb(path: Path, rgb: np.ndarray) -> None:
@@ -70,35 +103,45 @@ def _background(variant: int) -> np.ndarray:
     return np.repeat(grey[:, :, None], 3, axis=2)
 
 
-def _composite(
-    background: np.ndarray, button: np.ndarray, scale: float
-) -> tuple[np.ndarray, tuple[int, int], tuple[int, int]]:
-    """Paste ``button`` (scaled) onto a copy of ``background``.
+def _paste(
+    canvas: np.ndarray, button: np.ndarray, xy: tuple[int, int], scale: float
+) -> tuple[int, int]:
+    """Paste ``button`` (scaled) onto ``canvas`` in place.
 
-    Returns the image, the button center point, and its (w, h) at this scale.
+    Returns the button center point at this scale.
     """
     bh, bw = button.shape[:2]
     sw, sh = max(1, int(bw * scale)), max(1, int(bh * scale))
     resized = cv2.resize(button, (sw, sh), interpolation=cv2.INTER_AREA)
-
-    canvas = background.copy()
-    x, y = _PASTE_XY
+    x, y = xy
     canvas[y : y + sh, x : x + sw] = resized
-    center = (x + sw // 2, y + sh // 2)
-    return canvas, center, (sw, sh)
+    return (x + sw // 2, y + sh // 2)
+
+
+def _add_noise(image: np.ndarray) -> np.ndarray:
+    """Seeded Gaussian noise -- deterministic, so output stays byte-stable."""
+    rng = np.random.default_rng(_NOISE_SEED)
+    noise = rng.normal(0.0, _NOISE_SIGMA, image.shape)
+    return np.clip(image.astype(np.float64) + noise, 0, 255).astype(np.uint8)
+
+
+def _jpeg_roundtrip(image: np.ndarray) -> np.ndarray:
+    """Encode/decode through JPEG to introduce realistic compression artifacts."""
+    params = [int(cv2.IMWRITE_JPEG_QUALITY), _JPEG_QUALITY]
+    ok, encoded = cv2.imencode(".jpg", cv2.cvtColor(image, cv2.COLOR_RGB2BGR), params)
+    if not ok:
+        raise RuntimeError("JPEG encoding failed")
+    return cv2.cvtColor(cv2.imdecode(encoded, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
 
 
 def _present_case(
     image_rel: str,
     button_type: ButtonType,
     center: tuple[int, int],
-    size: tuple[int, int],
     scale: float,
+    tolerance: int,
+    variant: str,
 ) -> dict[str, Any]:
-    sw, sh = size
-    # Centroid of matched keypoints clusters inside the button; allow ~half the
-    # larger dimension plus a small margin.
-    tolerance = int(0.5 * max(sw, sh) + 15)
     return {
         "image": image_rel,
         "button_type": button_type.value,
@@ -108,21 +151,31 @@ def _present_case(
         "meta": {
             "resolution": f"{_CANVAS[0]}x{_CANVAS[1]}",
             "scale": scale,
+            "variant": variant,
             "source": "synthetic",
         },
     }
 
 
-def _absent_case(image_rel: str, button_type: ButtonType) -> dict[str, Any]:
+def _absent_case(
+    image_rel: str, button_type: ButtonType, variant: str
+) -> dict[str, Any]:
     return {
         "image": image_rel,
         "button_type": button_type.value,
         "expect": "absent",
         "meta": {
             "resolution": f"{_CANVAS[0]}x{_CANVAS[1]}",
+            "variant": variant,
             "source": "synthetic",
         },
     }
+
+
+def _write_case_image(name: str, image: np.ndarray) -> str:
+    rel = f"synthetic/{name}.png"
+    _save_rgb(SYNTHETIC_DIR / f"{name}.png", image)
+    return rel
 
 
 def generate() -> list[dict[str, Any]]:
@@ -130,34 +183,80 @@ def generate() -> list[dict[str, Any]]:
     cases: list[dict[str, Any]] = []
     variant = 0
 
-    for button_type, asset_name in _TEMPLATE_ASSET.items():
-        asset_path = ASSETS_PATH / asset_name
-        if not asset_path.exists():
-            continue
-        button = read_rgb(asset_path)
+    types: list[ButtonType] = [
+        bt for bt, asset in _TEMPLATE_ASSET.items() if (ASSETS_PATH / asset).exists()
+    ]
+    buttons: dict[ButtonType, np.ndarray] = {
+        bt: read_rgb(ASSETS_PATH / _TEMPLATE_ASSET[bt]) for bt in types
+    }
 
+    # Clean scale sweep + cross-template negatives off the scale-1.0 frames.
+    for idx, button_type in enumerate(types):
         for scale in _SCALES:
-            bg = _background(variant)
+            canvas = _background(variant)
             variant += 1
-            image, center, size = _composite(bg, button, scale)
+            center = _paste(canvas, buttons[button_type], _PASTE_XY, scale)
 
             tag = f"{int(scale * 100):03d}"
-            rel = f"synthetic/{button_type.value}_{tag}.png"
-            _save_rgb(SYNTHETIC_DIR / f"{button_type.value}_{tag}.png", image)
-            cases.append(_present_case(rel, button_type, center, size, scale))
+            rel = _write_case_image(f"{button_type.value}_{tag}", canvas)
+            cases.append(
+                _present_case(rel, button_type, center, scale, _TOL_CLEAN, "clean")
+            )
+
+            if scale == 1.0:
+                # A frame containing ONLY this button must yield None for other
+                # types -- the direct regression test for cross-template false
+                # positives (e.g. a CLICK frame formerly produced 13 spurious
+                # VORTEX matches at min_matches=8). Equivalent-looking types
+                # are skipped: detecting one where the other sits is correct.
+                others = [
+                    types[(idx + offset) % len(types)]
+                    for offset in range(1, len(types))
+                    if not _equivalent(types[(idx + offset) % len(types)], button_type)
+                ][:2]
+                for other in others:
+                    cases.append(_absent_case(rel, other, "cross_template"))
+
+    # Degraded variants of the scale-1.0 composite.
+    for button_type in types:
+        for name, degrade in (("noise", _add_noise), ("jpeg", _jpeg_roundtrip)):
+            canvas = _background(variant)
+            variant += 1
+            center = _paste(canvas, buttons[button_type], _PASTE_XY, 1.0)
+            rel = _write_case_image(f"{button_type.value}_{name}", degrade(canvas))
+            cases.append(
+                _present_case(rel, button_type, center, 1.0, _TOL_DEGRADED, name)
+            )
+
+    # Clutter scenes: the target plus two non-target templates. Present-case for
+    # the target, absent-case for a type not in the frame at all.
+    for idx, button_type in enumerate(types):
+        canvas = _background(variant)
+        variant += 1
+        center = _paste(canvas, buttons[button_type], _PASTE_XY, 1.0)
+        distractors = [types[(idx + 1) % len(types)], types[(idx + 2) % len(types)]]
+        for distractor, xy in zip(distractors, _CLUTTER_XY):
+            _paste(canvas, buttons[distractor], xy, 1.0)
+
+        rel = _write_case_image(f"{button_type.value}_clutter", canvas)
+        cases.append(
+            _present_case(rel, button_type, center, 1.0, _TOL_DEGRADED, "clutter")
+        )
+        present = (button_type, *distractors)
+        missing = next(
+            (bt for bt in types if not any(_equivalent(bt, p) for p in present)),
+            None,
+        )
+        if missing is not None:
+            cases.append(_absent_case(rel, missing, "clutter"))
 
     # Negative fixtures: button-free backgrounds -> basic false-positive guards
-    # (a detector that hallucinates on featureless input fails these). Stronger
-    # negatives with near-button distractors come from real screenshots captured
-    # via tools/capture_fixtures.py; synthetic cross-template negatives are
-    # intentionally omitted because main already false-positives on them (e.g. a
-    # CLICK button yields 13 spurious VORTEX matches at min_matches=8).
+    # (a detector that hallucinates on featureless input fails these).
     for idx, button_type in enumerate((ButtonType.VORTEX, ButtonType.WEBSITE)):
         bg = _background(variant)
         variant += 1
-        rel = f"synthetic/empty_{idx}.png"
-        _save_rgb(SYNTHETIC_DIR / f"empty_{idx}.png", bg)
-        cases.append(_absent_case(rel, button_type))
+        rel = _write_case_image(f"empty_{idx}", bg)
+        cases.append(_absent_case(rel, button_type, "empty"))
 
     return cases
 

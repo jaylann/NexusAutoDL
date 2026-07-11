@@ -1,6 +1,38 @@
 {
   "cases": [
     {
+      "image": "synthetic/vortex_075.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        637,
+        327
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.75,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_085.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        658,
+        331
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.85,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
       "image": "synthetic/vortex_100.png",
       "button_type": "vortex",
       "expect": "present",
@@ -8,10 +40,31 @@
         690,
         336
       ],
-      "tolerance_px": 225,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.0,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_100.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_100.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
         "source": "synthetic"
       }
     },
@@ -23,10 +76,11 @@
         743,
         345
       ],
-      "tolerance_px": 278,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.25,
+        "variant": "clean",
         "source": "synthetic"
       }
     },
@@ -38,10 +92,43 @@
         795,
         354
       ],
-      "tolerance_px": 330,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.5,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/website_075.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        654,
+        325
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.75,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/website_085.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        678,
+        328
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.85,
+        "variant": "clean",
         "source": "synthetic"
       }
     },
@@ -53,10 +140,31 @@
         713,
         333
       ],
-      "tolerance_px": 248,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.0,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/website_100.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/website_100.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
         "source": "synthetic"
       }
     },
@@ -68,10 +176,11 @@
         771,
         341
       ],
-      "tolerance_px": 306,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.25,
+        "variant": "clean",
         "source": "synthetic"
       }
     },
@@ -83,10 +192,43 @@
         829,
         350
       ],
-      "tolerance_px": 364,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.5,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/wabbajack_075.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        561,
+        315
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.75,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/wabbajack_085.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        572,
+        317
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.85,
+        "variant": "clean",
         "source": "synthetic"
       }
     },
@@ -98,10 +240,31 @@
         589,
         320
       ],
-      "tolerance_px": 124,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.0,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/wabbajack_100.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/wabbajack_100.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
         "source": "synthetic"
       }
     },
@@ -113,10 +276,11 @@
         616,
         325
       ],
-      "tolerance_px": 151,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.25,
+        "variant": "clean",
         "source": "synthetic"
       }
     },
@@ -128,10 +292,43 @@
         643,
         330
       ],
-      "tolerance_px": 178,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.5,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/click_075.png",
+      "button_type": "click",
+      "expect": "present",
+      "point": [
+        549,
+        319
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.75,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/click_085.png",
+      "button_type": "click",
+      "expect": "present",
+      "point": [
+        558,
+        321
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.85,
+        "variant": "clean",
         "source": "synthetic"
       }
     },
@@ -143,10 +340,31 @@
         572,
         325
       ],
-      "tolerance_px": 107,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.0,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/click_100.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/click_100.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
         "source": "synthetic"
       }
     },
@@ -158,10 +376,11 @@
         595,
         331
       ],
-      "tolerance_px": 130,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.25,
+        "variant": "clean",
         "source": "synthetic"
       }
     },
@@ -173,10 +392,43 @@
         618,
         338
       ],
-      "tolerance_px": 153,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.5,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/understood_075.png",
+      "button_type": "understood",
+      "expect": "present",
+      "point": [
+        515,
+        313
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.75,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/understood_085.png",
+      "button_type": "understood",
+      "expect": "present",
+      "point": [
+        520,
+        314
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.85,
+        "variant": "clean",
         "source": "synthetic"
       }
     },
@@ -188,10 +440,31 @@
         527,
         317
       ],
-      "tolerance_px": 62,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.0,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/understood_100.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/understood_100.png",
+      "button_type": "vortex",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
         "source": "synthetic"
       }
     },
@@ -203,10 +476,11 @@
         539,
         321
       ],
-      "tolerance_px": 74,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.25,
+        "variant": "clean",
         "source": "synthetic"
       }
     },
@@ -218,10 +492,43 @@
         551,
         326
       ],
-      "tolerance_px": 86,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.5,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/staging_075.png",
+      "button_type": "staging",
+      "expect": "present",
+      "point": [
+        547,
+        311
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.75,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/staging_085.png",
+      "button_type": "staging",
+      "expect": "present",
+      "point": [
+        556,
+        312
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.85,
+        "variant": "clean",
         "source": "synthetic"
       }
     },
@@ -233,10 +540,31 @@
         570,
         315
       ],
-      "tolerance_px": 105,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.0,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/staging_100.png",
+      "button_type": "vortex",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/staging_100.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "cross_template",
         "source": "synthetic"
       }
     },
@@ -248,10 +576,11 @@
         592,
         318
       ],
-      "tolerance_px": 127,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.25,
+        "variant": "clean",
         "source": "synthetic"
       }
     },
@@ -263,10 +592,359 @@
         615,
         322
       ],
-      "tolerance_px": 150,
+      "tolerance_px": 10,
       "meta": {
         "resolution": "1280x720",
         "scale": 1.5,
+        "variant": "clean",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_noise.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        690,
+        336
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "noise",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_jpeg.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        690,
+        336
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "jpeg",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/website_noise.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        713,
+        333
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "noise",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/website_jpeg.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        713,
+        333
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "jpeg",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/wabbajack_noise.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        589,
+        320
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "noise",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/wabbajack_jpeg.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        589,
+        320
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "jpeg",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/click_noise.png",
+      "button_type": "click",
+      "expect": "present",
+      "point": [
+        572,
+        325
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "noise",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/click_jpeg.png",
+      "button_type": "click",
+      "expect": "present",
+      "point": [
+        572,
+        325
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "jpeg",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/understood_noise.png",
+      "button_type": "understood",
+      "expect": "present",
+      "point": [
+        527,
+        317
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "noise",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/understood_jpeg.png",
+      "button_type": "understood",
+      "expect": "present",
+      "point": [
+        527,
+        317
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "jpeg",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/staging_noise.png",
+      "button_type": "staging",
+      "expect": "present",
+      "point": [
+        570,
+        315
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "noise",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/staging_jpeg.png",
+      "button_type": "staging",
+      "expect": "present",
+      "point": [
+        570,
+        315
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "jpeg",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_clutter.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        690,
+        336
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "clutter",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_clutter.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "clutter",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/website_clutter.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        713,
+        333
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "clutter",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/website_clutter.png",
+      "button_type": "vortex",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "clutter",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/wabbajack_clutter.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        589,
+        320
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "clutter",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/wabbajack_clutter.png",
+      "button_type": "vortex",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "clutter",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/click_clutter.png",
+      "button_type": "click",
+      "expect": "present",
+      "point": [
+        572,
+        325
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "clutter",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/click_clutter.png",
+      "button_type": "vortex",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "clutter",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/understood_clutter.png",
+      "button_type": "understood",
+      "expect": "present",
+      "point": [
+        527,
+        317
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "clutter",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/understood_clutter.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "clutter",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/staging_clutter.png",
+      "button_type": "staging",
+      "expect": "present",
+      "point": [
+        570,
+        315
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "clutter",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/staging_clutter.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "clutter",
         "source": "synthetic"
       }
     },
@@ -276,6 +954,7 @@
       "expect": "absent",
       "meta": {
         "resolution": "1280x720",
+        "variant": "empty",
         "source": "synthetic"
       }
     },
@@ -285,6 +964,7 @@
       "expect": "absent",
       "meta": {
         "resolution": "1280x720",
+        "variant": "empty",
         "source": "synthetic"
       }
     }
