@@ -4,6 +4,7 @@ Button detection using SIFT feature matching.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Optional
 
@@ -21,6 +22,18 @@ from models import (
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# RANSAC similarity-fit parameters. SIFT localizes UI text/edges within ~1-2 px,
+# so a 3 px reprojection threshold separates coherent matches from scatter.
+RANSAC_REPROJ_PX = 3.0
+RANSAC_MAX_ITERS = 2000
+RANSAC_CONFIDENCE = 0.995
+
+# Transform acceptance gates. Buttons only translate and uniformly scale (DPI),
+# so anything rotated or outside the plausible scale window is a false match.
+MIN_INLIER_RATIO = 0.5
+SCALE_RANGE = (0.5, 2.0)
+MAX_ROTATION_DEG = 5.0
 
 
 class ButtonDetector:
@@ -162,7 +175,60 @@ class ButtonDetector:
                     f"{'Add the legacy asset or run without --legacy' if self.use_legacy_buttons else 'Provide the new asset or rerun with --legacy'}."
                 )
 
-    def _match_template(
+    def _ratio_test(
+        self, matches: list[list[cv2.DMatch]], ratio: float
+    ) -> list[cv2.DMatch]:
+        """Apply Lowe's ratio test to knn match pairs."""
+        good: list[cv2.DMatch] = []
+        for pair in matches:
+            if len(pair) == 2:
+                m, n = pair
+                if m.distance < ratio * n.distance:
+                    good.append(m)
+        return good
+
+    @staticmethod
+    def _estimate_similarity(
+        src_pts: npt.NDArray[np.float32],
+        dst_pts: npt.NDArray[np.float32],
+    ) -> Optional[tuple[npt.NDArray[np.float64], npt.NDArray[np.uint8]]]:
+        """Fit a RANSAC similarity transform mapping template points to scene points."""
+        transform, inlier_mask = cv2.estimateAffinePartial2D(
+            src_pts,
+            dst_pts,
+            method=cv2.RANSAC,
+            ransacReprojThreshold=RANSAC_REPROJ_PX,
+            maxIters=RANSAC_MAX_ITERS,
+            confidence=RANSAC_CONFIDENCE,
+        )
+        if transform is None or inlier_mask is None:
+            return None
+        return transform, inlier_mask
+
+    @staticmethod
+    def _validate_transform(
+        transform: npt.NDArray[np.float64],
+    ) -> Optional[tuple[float, float]]:
+        """Return (scale, rotation_deg) if the transform is plausible, else None."""
+        scale = float(math.hypot(transform[0, 0], transform[1, 0]))
+        rotation_deg = float(math.degrees(math.atan2(transform[1, 0], transform[0, 0])))
+        if not (SCALE_RANGE[0] <= scale <= SCALE_RANGE[1]):
+            return None
+        if abs(rotation_deg) > MAX_ROTATION_DEG:
+            return None
+        return scale, rotation_deg
+
+    @staticmethod
+    def _project_center(
+        transform: npt.NDArray[np.float64], width: int, height: int
+    ) -> tuple[float, float]:
+        """Project the template center through the fitted transform."""
+        cx, cy = width / 2.0, height / 2.0
+        px = transform[0, 0] * cx + transform[0, 1] * cy + transform[0, 2]
+        py = transform[1, 0] * cx + transform[1, 1] * cy + transform[1, 2]
+        return float(px), float(py)
+
+    def _match_sift(
         self,
         template: TemplateCandidate,
         kps: list[cv2.KeyPoint],
@@ -173,36 +239,57 @@ class ButtonDetector:
         offset_x: int,
         offset_y: int,
     ) -> Optional[DetectionResult]:
-        """Run descriptor matching for a single template."""
-        if template.desc is None:
+        """Match one template via SIFT + RANSAC-verified similarity transform."""
+        if template.desc is None or len(template.kps) == 0:
             return None
 
         matches: list[list[cv2.DMatch]] = self.matcher.knnMatch(template.desc, des, k=2)
-        good_matches: list[cv2.DMatch] = []
+        good_matches = self._ratio_test(matches, ratio)
 
-        for pair in matches:
-            if len(pair) == 2:
-                m, n = pair
-                if m.distance < ratio * n.distance:
-                    good_matches.append(m)
-
-        if len(good_matches) < min_matches:
+        if len(good_matches) < max(4, min_matches // 2):
             logger.debug(
-                f"{button_type}: only {len(good_matches)} matches (need {min_matches})"
+                f"{button_type}: only {len(good_matches)} ratio-test matches "
+                f"(need {max(4, min_matches // 2)} to attempt a geometric fit)"
             )
             return None
 
-        pts: npt.NDArray[np.float32] = np.float32(
-            [kps[m.trainIdx].pt for m in good_matches]
-        )
-        cx, cy = np.mean(pts, axis=0)
+        src_pts = np.float32([template.kps[m.queryIdx].pt for m in good_matches])
+        dst_pts = np.float32([kps[m.trainIdx].pt for m in good_matches])
+
+        fit = self._estimate_similarity(src_pts, dst_pts)
+        if fit is None:
+            logger.debug(f"{button_type}: similarity fit failed")
+            return None
+        transform, inlier_mask = fit
+
+        inliers = int(inlier_mask.sum())
+        min_inliers = max(4, math.ceil(0.75 * min_matches))
+        inlier_ratio = inliers / len(good_matches)
+
+        if inliers < min_inliers or inlier_ratio < MIN_INLIER_RATIO:
+            logger.debug(
+                f"{button_type}: rejected fit with {inliers} inliers "
+                f"(need {min_inliers}) at ratio {inlier_ratio:.2f}"
+            )
+            return None
+
+        validated = self._validate_transform(transform)
+        if validated is None:
+            logger.debug(f"{button_type}: rejected implausible transform")
+            return None
+        scale, rotation_deg = validated
+
+        cx, cy = self._project_center(transform, template.width, template.height)
         cx += offset_x
         cy += offset_y
-        confidence = min(len(good_matches) / (min_matches * 2), 1.0)
+        confidence = min(
+            1.0, 0.6 * min(inliers / (2 * min_inliers), 1.0) + 0.4 * inlier_ratio
+        )
 
         logger.info(
-            f"Detected {button_type} at ({int(cx)}, {int(cy)}) "
-            f"with {len(good_matches)} matches (confidence: {confidence:.2f})"
+            f"Detected {button_type} at ({int(cx)}, {int(cy)}) with {inliers} inliers "
+            f"(scale {scale:.2f}, rot {rotation_deg:.1f} deg, "
+            f"confidence: {confidence:.2f})"
         )
 
         return DetectionResult(
@@ -210,9 +297,12 @@ class ButtonDetector:
             x=int(cx),
             y=int(cy),
             confidence=confidence,
-            num_matches=len(good_matches),
+            num_matches=inliers,
             template_width=template.width,
             template_height=template.height,
+            scale=scale,
+            inliers=inliers,
+            method="sift",
         )
 
     def detect(
@@ -269,7 +359,7 @@ class ButtonDetector:
 
         best_result: Optional[DetectionResult] = None
         for template in template_candidates:
-            result: Optional[DetectionResult] = self._match_template(
+            result: Optional[DetectionResult] = self._match_sift(
                 template,
                 kps,
                 des,
@@ -280,7 +370,9 @@ class ButtonDetector:
                 offset_y,
             )
             if result and (
-                best_result is None or result.num_matches > best_result.num_matches
+                best_result is None
+                or (result.inliers or 0, result.confidence)
+                > (best_result.inliers or 0, best_result.confidence)
             ):
                 best_result = result
 
