@@ -22,7 +22,7 @@ from services.button_detector import ButtonDetector
 from tests.harness import (
     case_id,
     case_image_path,
-    centroid_error,
+    ground_truth_error,
     load_cases,
     read_rgb,
     skip_reason,
@@ -63,10 +63,9 @@ def test_detection_case(case: dict[str, Any], detector: ButtonDetector) -> None:
         f"expected {button_type.value} but detect() returned None"
     )
 
-    point = case["point"]
     tolerance = float(case["tolerance_px"])
-    error = centroid_error((result.x, result.y), point)
+    error = ground_truth_error((result.x, result.y), case)
     assert error <= tolerance, (
         f"{button_type.value} centroid ({result.x}, {result.y}) is {error:.1f}px "
-        f"from ground truth {tuple(point)} (tolerance {tolerance:.0f}px)"
+        f"from the nearest ground truth (tolerance {tolerance:.0f}px)"
     )

@@ -31,19 +31,29 @@ RANSAC_CONFIDENCE = 0.995
 
 # Transform acceptance gates. Buttons only translate and uniformly scale (DPI),
 # so anything rotated or outside the plausible scale window is a false match.
+# The scale window extends slightly past the rendered-scale extremes (0.65-2.0
+# in the benchmark) so a boundary fit is not rejected by rounding.
 MIN_INLIER_RATIO = 0.5
-SCALE_RANGE = (0.5, 2.0)
+SCALE_RANGE = (0.4, 2.2)
 MAX_ROTATION_DEG = 5.0
 
 # Normalized cross-correlation fallback for templates too small/featureless for
-# SIFT. The geometric scale ladder steps ~9% per rung; NCC on these templates
-# still correlates >0.9 within +-4.5% scale error. Downscaled thin-text
-# templates bottom out around 0.78 (resampling blur) while cross-template false
-# matches stay below 0.5, so 0.75 keeps a real margin on both sides.
-TM_THRESHOLD = 0.75
+# SIFT. SIFT only starves on DOWN-scales (fewer pixels -> fewer keypoints);
+# upscaled buttons always carry enough features, so the ladder stops at 1.1 --
+# a wider ladder lets busy UI scenes (generic dark rects with light text)
+# impersonate small button templates at inflated scales.
 TM_SCALES: tuple[float, ...] = tuple(
-    round(0.60 * (2.00 / 0.60) ** (i / 14), 4) for i in range(15)
+    round(0.60 * (1.10 / 0.60) ** (i / 7), 4) for i in range(8)
 )
+
+# Layered acceptance: strong intensity peaks pass outright; band peaks must
+# also match the template's gradient (edge) signature at the peak location.
+# Measured on adversarial rect+text UI scenes: false peaks reach 0.824
+# intensity but at most 0.71 gradient, while the weakest true fallback case
+# (thin-text wabbajack at 0.85x) scores 0.876 intensity / 0.913 gradient.
+TM_STRONG_THRESHOLD = 0.90
+TM_BAND_THRESHOLD = 0.80
+TM_GRAD_THRESHOLD = 0.80
 
 # Appearance verification of accepted SIFT fits: NCC between the scene region
 # the transform predicts and the template at the recovered scale. A coherent
@@ -362,6 +372,45 @@ class ButtonDetector:
             method="sift",
         )
 
+    @staticmethod
+    def _gradient_magnitude(gray: npt.NDArray[np.uint8]) -> npt.NDArray[np.float32]:
+        gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0)
+        gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1)
+        # Softening the edge maps absorbs the sub-pixel edge misalignment that
+        # resampled thin text produces (true wabbajack@0.65 scores 0.95 blurred
+        # vs 0.80 raw) while structurally different regions stay low (~0.64).
+        return cv2.GaussianBlur(cv2.magnitude(gx, gy), (3, 3), 0)
+
+    def _gradient_score(
+        self,
+        template: TemplateCandidate,
+        scene_gray: npt.NDArray[np.uint8],
+        peak_xy: tuple[int, int],
+        scale: float,
+        sw: int,
+        sh: int,
+    ) -> float:
+        """Gradient (edge) NCC around an intensity peak.
+
+        Intensity NCC is contrast-normalized, so generic dark-rect-with-text UI
+        regions can impersonate small button templates; their edge structure
+        does not. A small search pad absorbs peak/rung misalignment.
+        """
+        pad = VERIFY_SEARCH_PAD
+        x1, y1 = max(0, peak_xy[0] - pad), max(0, peak_xy[1] - pad)
+        x2 = min(scene_gray.shape[1], peak_xy[0] + sw + pad)
+        y2 = min(scene_gray.shape[0], peak_xy[1] + sh + pad)
+        if x2 - x1 < sw or y2 - y1 < sh:
+            return -1.0
+        interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
+        resized = cv2.resize(template.gray, (sw, sh), interpolation=interpolation)
+        result = cv2.matchTemplate(
+            self._gradient_magnitude(scene_gray[y1:y2, x1:x2]),
+            self._gradient_magnitude(resized),
+            cv2.TM_CCOEFF_NORMED,
+        )
+        return float(result.max())
+
     def _match_ncc(
         self,
         template: TemplateCandidate,
@@ -386,14 +435,23 @@ class ButtonDetector:
             if best is None or max_val > best[0]:
                 best = (float(max_val), max_loc, scale, sw, sh)
 
-        if best is None or best[0] < TM_THRESHOLD:
+        if best is None or best[0] < TM_BAND_THRESHOLD:
             if best is not None:
                 logger.debug(
-                    f"{button_type}: NCC peak {best[0]:.2f} below {TM_THRESHOLD}"
+                    f"{button_type}: NCC peak {best[0]:.2f} below {TM_BAND_THRESHOLD}"
                 )
             return None
 
         peak, (px, py), scale, sw, sh = best
+
+        if peak < TM_STRONG_THRESHOLD:
+            grad = self._gradient_score(template, scene_gray, (px, py), scale, sw, sh)
+            if grad < TM_GRAD_THRESHOLD:
+                logger.debug(
+                    f"{button_type}: NCC band peak {peak:.2f} rejected, "
+                    f"gradient score {grad:.2f} (need {TM_GRAD_THRESHOLD})"
+                )
+                return None
         cx = px + sw / 2.0 + offset_x
         cy = py + sh / 2.0 + offset_y
 
