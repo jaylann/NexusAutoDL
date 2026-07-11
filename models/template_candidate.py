@@ -1,15 +1,22 @@
 """Template metadata for button detection."""
 
-from dataclasses import dataclass
+from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Optional
+
+import cv2
+from numpy import float32, uint8
 from numpy.typing import NDArray
-from numpy import float32
 
 
 @dataclass(frozen=True)
 class TemplateCandidate:
-    """Descriptor metadata for drawing debug info."""
+    """Precomputed matching data for a single template image."""
 
-    desc: NDArray[float32]
+    kps: tuple[cv2.KeyPoint, ...]
+    desc: Optional[NDArray[float32]]
+    gray: NDArray[uint8]
     width: int
     height: int
+    name: str = ""

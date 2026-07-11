@@ -43,7 +43,9 @@ class ButtonDetector:
         self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
 
         self.assets = self._load_assets()
-        self._compute_descriptors()
+        self._templates: dict[ButtonType, list[TemplateCandidate]] = (
+            self._build_templates()
+        )
         self._log_asset_mode()
 
         logger.info("Button detector initialized")
@@ -95,83 +97,70 @@ class ButtonDetector:
 
         return ButtonAssets(**loaded_images)
 
-    def _compute_descriptors(self) -> None:
-        """Compute SIFT descriptors for all assets."""
+    def _build_templates(self) -> dict[ButtonType, list[TemplateCandidate]]:
+        """Precompute matching data for every template once."""
 
-        def compute_desc(
-            img: npt.NDArray[np.uint8],
-        ) -> Optional[npt.NDArray[np.float32]]:
-            gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-            _, desc = self.sift.detectAndCompute(gray, mask=None)
-            return desc
+        def mode_specific(
+            legacy_img: Optional[npt.NDArray[np.uint8]],
+            new_img: Optional[npt.NDArray[np.uint8]],
+        ) -> list[TemplateCandidate]:
+            img = legacy_img if self.use_legacy_buttons else new_img
+            name = "legacy" if self.use_legacy_buttons else "new"
+            candidate = self._make_candidate(img, name)
+            return [candidate] if candidate else []
 
-        self.assets.vortex_desc = compute_desc(self.assets.vortex_img)
-        if self.assets.vortex_new_img is not None:
-            self.assets.vortex_new_desc = compute_desc(self.assets.vortex_new_img)
+        def single(img: Optional[npt.NDArray[np.uint8]]) -> list[TemplateCandidate]:
+            candidate = self._make_candidate(img, "default")
+            return [candidate] if candidate else []
 
-        self.assets.web_desc = compute_desc(self.assets.web_img)
-        if self.assets.web_new_img is not None:
-            self.assets.web_new_desc = compute_desc(self.assets.web_new_img)
-        self.assets.wabbajack_desc = compute_desc(self.assets.wabbajack_img)
-        self.assets.click_desc = compute_desc(self.assets.click_img)
-        self.assets.understood_desc = compute_desc(self.assets.understood_img)
-        self.assets.staging_desc = compute_desc(self.assets.staging_img)
+        templates = {
+            ButtonType.VORTEX: mode_specific(
+                self.assets.vortex_img, self.assets.vortex_new_img
+            ),
+            ButtonType.WEBSITE: mode_specific(
+                self.assets.web_img, self.assets.web_new_img
+            ),
+            ButtonType.WABBAJACK: single(self.assets.wabbajack_img),
+            ButtonType.CLICK: single(self.assets.click_img),
+            ButtonType.UNDERSTOOD: single(self.assets.understood_img),
+            ButtonType.STAGING: single(self.assets.staging_img),
+        }
+        logger.info("Computed template matching data for all assets")
+        return templates
 
-        logger.info("Computed descriptors for all assets")
+    def _make_candidate(
+        self,
+        img: Optional[npt.NDArray[np.uint8]],
+        name: str,
+    ) -> Optional[TemplateCandidate]:
+        if img is None:
+            return None
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        kps, desc = self.sift.detectAndCompute(gray, mask=None)
+        height, width = img.shape[:2]
+        return TemplateCandidate(
+            kps=tuple(kps),
+            desc=desc,
+            gray=gray,
+            width=int(width),
+            height=int(height),
+            name=name,
+        )
 
     def _log_asset_mode(self) -> None:
         """Log which button assets will be used for detection."""
         mode = "legacy" if self.use_legacy_buttons else "new"
         logger.info(f"Using {mode} button templates")
 
-        required = [
-            ("Vortex", self.assets.vortex_desc, self.assets.vortex_new_desc),
-            ("Website", self.assets.web_desc, self.assets.web_new_desc),
-        ]
-        for label, legacy_desc, new_desc in required:
-            target_desc = legacy_desc if self.use_legacy_buttons else new_desc
-            if target_desc is None:
+        for label, button_type in (
+            ("Vortex", ButtonType.VORTEX),
+            ("Website", ButtonType.WEBSITE),
+        ):
+            if not self._templates[button_type]:
                 logger.warning(
                     f"{label} {mode} template not found. "
                     f"{'Add the legacy asset or run without --legacy' if self.use_legacy_buttons else 'Provide the new asset or rerun with --legacy'}."
                 )
-
-    def _mode_specific_candidates(
-        self,
-        *,
-        legacy_img: Optional[npt.NDArray[np.uint8]],
-        legacy_desc: Optional[npt.NDArray[np.float32]],
-        new_img: Optional[npt.NDArray[np.uint8]],
-        new_desc: Optional[npt.NDArray[np.float32]],
-    ) -> list[TemplateCandidate]:
-        """Return template candidate for selected mode if available."""
-        img: Optional[npt.NDArray[np.uint8]] = (
-            legacy_img if self.use_legacy_buttons else new_img
-        )
-        desc: Optional[npt.NDArray[np.float32]] = (
-            legacy_desc if self.use_legacy_buttons else new_desc
-        )
-        candidate = self._make_candidate(img, desc)
-        return [candidate] if candidate else []
-
-    def _single_candidate(
-        self,
-        img: Optional[npt.NDArray[np.uint8]],
-        desc: Optional[npt.NDArray[np.float32]],
-    ) -> list[TemplateCandidate]:
-        """Return a single template candidate if descriptors exist."""
-        candidate = self._make_candidate(img, desc)
-        return [candidate] if candidate else []
-
-    def _make_candidate(
-        self,
-        img: Optional[npt.NDArray[np.uint8]],
-        desc: Optional[npt.NDArray[np.float32]],
-    ) -> Optional[TemplateCandidate]:
-        if img is None or desc is None:
-            return None
-        height, width = img.shape[:2]
-        return TemplateCandidate(desc=desc, width=int(width), height=int(height))
 
     def _match_template(
         self,
@@ -185,6 +174,9 @@ class ButtonDetector:
         offset_y: int,
     ) -> Optional[DetectionResult]:
         """Run descriptor matching for a single template."""
+        if template.desc is None:
+            return None
+
         matches: list[list[cv2.DMatch]] = self.matcher.knnMatch(template.desc, des, k=2)
         good_matches: list[cv2.DMatch] = []
 
@@ -244,37 +236,9 @@ class ButtonDetector:
         Returns:
             DetectionResult if button found, None otherwise
         """
-        # Get descriptor for button type
-        candidate_map = {
-            ButtonType.VORTEX: self._mode_specific_candidates(
-                legacy_img=self.assets.vortex_img,
-                legacy_desc=self.assets.vortex_desc,
-                new_img=self.assets.vortex_new_img,
-                new_desc=self.assets.vortex_new_desc,
-            ),
-            ButtonType.WEBSITE: self._mode_specific_candidates(
-                legacy_img=self.assets.web_img,
-                legacy_desc=self.assets.web_desc,
-                new_img=self.assets.web_new_img,
-                new_desc=self.assets.web_new_desc,
-            ),
-            ButtonType.WABBAJACK: self._single_candidate(
-                self.assets.wabbajack_img, self.assets.wabbajack_desc
-            ),
-            ButtonType.CLICK: self._single_candidate(
-                self.assets.click_img, self.assets.click_desc
-            ),
-            ButtonType.UNDERSTOOD: self._single_candidate(
-                self.assets.understood_img, self.assets.understood_desc
-            ),
-            ButtonType.STAGING: self._single_candidate(
-                self.assets.staging_img, self.assets.staging_desc
-            ),
-        }
-
-        template_candidates = candidate_map[button_type]
+        template_candidates = self._templates[button_type]
         if not template_candidates:
-            logger.warning(f"No descriptors for {button_type}")
+            logger.warning(f"No templates for {button_type}")
             return None
 
         # Crop to bbox if provided

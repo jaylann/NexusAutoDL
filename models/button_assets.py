@@ -2,13 +2,13 @@
 
 from typing import Optional
 
-from numpy import float32, uint8
+from numpy import uint8
 from numpy.typing import NDArray
 from pydantic import BaseModel
 
 
 class ButtonAssets(BaseModel):
-    """Container for button image assets and descriptors."""
+    """Container for button image assets."""
 
     vortex_img: NDArray[uint8]
     vortex_new_img: Optional[NDArray[uint8]] = None
@@ -18,15 +18,6 @@ class ButtonAssets(BaseModel):
     click_img: NDArray[uint8]
     understood_img: NDArray[uint8]
     staging_img: NDArray[uint8]
-
-    vortex_desc: Optional[NDArray[float32]] = None
-    vortex_new_desc: Optional[NDArray[float32]] = None
-    web_desc: Optional[NDArray[float32]] = None
-    web_new_desc: Optional[NDArray[float32]] = None
-    wabbajack_desc: Optional[NDArray[float32]] = None
-    click_desc: Optional[NDArray[float32]] = None
-    understood_desc: Optional[NDArray[float32]] = None
-    staging_desc: Optional[NDArray[float32]] = None
 
     class Config:
         arbitrary_types_allowed = True
