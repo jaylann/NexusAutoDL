@@ -47,6 +47,36 @@ jobs:
       - name: Type check
         run: mypy . || true
 
+  detection-benchmark:
+    # Quality gate: regenerates the deterministic fixture suite and fails when
+    # the detection score drops below the bar. Runs on both OSes to catch
+    # platform-specific OpenCV/SIFT drift. Full per-type/per-variant breakdown
+    # lands in the job summary for PR review.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Detection benchmark (fail under 0.999)
+        shell: bash
+        run: |
+          python detection_report.py --fail-under 0.999 | tee report.txt
+          {
+            echo '### Detection benchmark (${{ matrix.os }})'
+            echo '```'
+            cat report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   test:
     strategy:
       fail-fast: false
