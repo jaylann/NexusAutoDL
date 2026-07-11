@@ -11,6 +11,7 @@ import click
 
 from app import run as run_app
 from models import AppConfig, BrowserType
+from utils.dpi import ensure_dpi_awareness
 from utils.logger import configure_logging, get_logger
 from utils.platform import IS_WINDOWS
 
@@ -94,6 +95,9 @@ def main(
 
     Use --simulate to test without Windows or actual button detection.
     """
+    # Must run before any other win32/mss call: DPI awareness is process-global
+    # and one-shot, and everything downstream assumes physical-pixel geometry.
+    ensure_dpi_awareness()
     configure_logging(verbose)
 
     # Validate arguments

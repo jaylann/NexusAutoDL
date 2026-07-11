@@ -5,18 +5,22 @@ click the button), this script *renders* each button template itself onto a
 borderless full-screen window on a chosen monitor at known positions/scales,
 then captures the frame through the SAME ``ScreenCapture`` pipeline ``app.py``
 uses. Because the script controls where the button is drawn, ground-truth click
-points are computed geometrically from the physical MSS monitor bounds -- exact,
-DPI- and multi-monitor-correct, and independent of the detector.
+points are computed geometrically from the frame's own bounds -- exact, DPI-
+and multi-monitor-correct, and independent of the detector.
 
 That combination is the point: synthetic fixtures have exact labels but fake
 geometry; hand-captured fixtures have real geometry but hand labels. This has
 both -- real capture-pipeline geometry AND exact labels -- across many scenarios.
 
+The process declares per-monitor DPI awareness first (exactly like ``main.py``),
+so Tk window geometry, win32 monitor bounds and mss captures all agree in
+physical pixels; ground truth stays exact at any Windows display scale.
+
 Windows-only (needs the real capture pipeline). Produces PNGs + a cases stub the
 cross-platform pytest harness / detection_report.py then consume on any OS.
 
 Examples:
-    # default sweep: all button types, 3 positions x 2 scales, both monitors
+    # default sweep: all button types, 3 positions x 2 scales, all monitors
     python tools/generate_scenarios.py --out tests/fixtures/detection/real --verify
 
     # only vortex + website, more positions, append straight into cases.json
@@ -41,6 +45,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from models import ButtonType  # noqa: E402
+from utils.dpi import ensure_dpi_awareness  # noqa: E402
 from utils.platform import IS_WINDOWS  # noqa: E402
 
 # Button type -> template asset rendered (the one matched in default/non-legacy
@@ -87,44 +92,9 @@ def _save_png_unicode_safe(path: Path, rgb: Any) -> None:
     buf.tofile(str(path))
 
 
-def _match_physical(
-    monitor: Any, screen_monitors: list[dict[str, int]]
-) -> dict[str, int]:
-    """Match a win32 Monitor to its physical MSS monitor entry.
-
-    Same nearest-bounds heuristic ScreenCapture uses; reliable when monitors are
-    well separated in coordinate space (always true for distinct displays), even
-    when DPI scaling makes win32 logical bounds differ from physical framebuffer.
-    """
-    physical = screen_monitors[1:] if len(screen_monitors) > 1 else screen_monitors
-    return min(
-        physical,
-        key=lambda m: (
-            abs(m["left"] - monitor.x)
-            + abs(m["top"] - monitor.y)
-            + abs(m["width"] - monitor.width)
-            + abs(m["height"] - monitor.height)
-        ),
-    )
-
-
-def _ground_truth_point(
-    phys: dict[str, int], fx: float, fy: float, min_x: int, min_y: int
-) -> tuple[int, int]:
-    """Button center in capture-image px.
-
-    Works regardless of DPI: the window covers the monitor, so a button drawn at
-    fraction (fx, fy) lands at that same fraction of the physical monitor. We then
-    offset by the capture region origin to get image coordinates.
-    """
-    cx = phys["left"] + fx * phys["width"]
-    cy = phys["top"] + fy * phys["height"]
-    return int(round(cx - min_x)), int(round(cy - min_y))
-
-
 def _render_and_capture(
     root: Any,
-    monitor: Any,
+    frame: Any,
     photo_img: Any,
     fx: float,
     fy: float,
@@ -132,18 +102,21 @@ def _render_and_capture(
     screen_capture: Any,
     settle: float,
 ) -> Any:
-    """Draw the button on a borderless full-monitor window and capture it."""
+    """Draw the button on a borderless full-monitor window and capture it.
+
+    Returns the captured image of the frame being rendered on.
+    """
     import tkinter as tk
     from PIL import ImageTk
 
     win = tk.Toplevel(root)
     win.overrideredirect(True)
-    win.geometry(f"{monitor.width}x{monitor.height}+{monitor.x}+{monitor.y}")
+    win.geometry(f"{frame.width}x{frame.height}+{frame.left}+{frame.top}")
 
     canvas = tk.Canvas(
         win,
-        width=monitor.width,
-        height=monitor.height,
+        width=frame.width,
+        height=frame.height,
         highlightthickness=0,
         bg=bg_color,
     )
@@ -151,8 +124,8 @@ def _render_and_capture(
 
     tk_photo = ImageTk.PhotoImage(photo_img) if photo_img is not None else None
     if tk_photo is not None:
-        cx = int(fx * monitor.width)
-        cy = int(fy * monitor.height)
+        cx = int(fx * frame.width)
+        cy = int(fy * frame.height)
         canvas.create_image(cx, cy, image=tk_photo, anchor="center")
 
     win.lift()
@@ -160,30 +133,31 @@ def _render_and_capture(
     win.update()
     time.sleep(settle)  # let the compositor actually paint before grabbing
 
-    img = screen_capture.capture()
+    captured = next(
+        c for c in screen_capture.capture_frames() if c.frame.index == frame.index
+    )
     win.destroy()
     root.update()  # process the destroy so the next window paints cleanly
-    return img
+    return captured.image
 
 
 def _build_plan(
     types: list[ButtonType],
-    monitors: list[Any],
+    frames: list[Any],
     positions: int,
     scales: int,
 ) -> list[dict[str, Any]]:
-    """Cartesian sweep of (monitor, button_type, scale, position)."""
+    """Cartesian sweep of (monitor frame, button_type, scale, position)."""
     pos = _POSITION_POOL[: max(1, positions)]
     scl = _SCALE_POOL[: max(1, scales)]
     plan: list[dict[str, Any]] = []
-    for mon_idx, monitor in enumerate(monitors):
+    for frame in frames:
         for bt in types:
             for scale in scl:
                 for fx, fy in pos:
                     plan.append(
                         {
-                            "monitor_index": mon_idx,
-                            "monitor": monitor,
+                            "frame": frame,
                             "button_type": bt,
                             "scale": scale,
                             "fx": fx,
@@ -204,6 +178,26 @@ def _load_pil(asset_path: Path, scale: float) -> Any:
             (max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS
         )
     return img
+
+
+def _frame_meta(
+    frame: Any, virtual_layout: list[list[int]], awareness: str
+) -> dict[str, Any]:
+    """Shared meta block describing the captured frame's geometry."""
+    return {
+        "resolution": f"{frame.width}x{frame.height}",
+        "frame": {
+            "left": frame.left,
+            "top": frame.top,
+            "width": frame.width,
+            "height": frame.height,
+        },
+        "virtual_layout": virtual_layout,
+        "dpi_awareness": awareness,
+        "orientation": "portrait" if frame.height > frame.width else "landscape",
+        "monitor_index": frame.index,
+        "source": "scenario",
+    }
 
 
 def main() -> int:
@@ -261,6 +255,11 @@ def main() -> int:
         )
         return 1
 
+    # Before Tk/win32/mss touch anything, exactly like main.py: with per-monitor
+    # awareness, Tk geometry strings are physical pixels and ground truth from
+    # frame fractions stays exact at any display scale.
+    awareness = ensure_dpi_awareness()
+
     try:
         import tkinter as tk  # noqa: F401
         from PIL import Image, ImageTk  # noqa: F401
@@ -284,24 +283,26 @@ def main() -> int:
 
     monitors = WindowManager.get_all_monitors()
     capture = ScreenCapture(monitors, force_primary=args.force_primary)
-    target_monitors = [monitors[0]] if args.force_primary else monitors
+    target_frames = capture.targets
 
-    print(f"Monitors ({len(monitors)}):")
-    for i, m in enumerate(monitors):
-        print(f"  [{i}] origin=({m.x},{m.y}) size={m.width}x{m.height}")
-    print(
-        f"Capture region: left={capture.min_x} top={capture.min_y} "
-        f"{capture.virtual_width}x{capture.virtual_height}"
-    )
+    print(f"DPI awareness: {awareness.value}")
+    print(f"Monitors ({len(capture.desktop.frames)}):")
+    for frame in capture.desktop.frames:
+        print(
+            f"  [{frame.index}] origin=({frame.left},{frame.top}) "
+            f"size={frame.width}x{frame.height}"
+        )
 
-    plan = _build_plan(types, target_monitors, args.positions, args.scales)
+    plan = _build_plan(types, target_frames, args.positions, args.scales)
     print(
         f"Planned {len(plan)} present scenarios + "
-        f"{args.negatives * len(target_monitors)} negatives. Starting...\n"
+        f"{args.negatives * len(target_frames)} negatives. Starting...\n"
     )
 
     args.out.mkdir(parents=True, exist_ok=True)
-    resolution = f"{capture.virtual_width}x{capture.virtual_height}"
+    virtual_layout = [
+        [f.left, f.top, f.width, f.height] for f in capture.desktop.frames
+    ]
 
     detector = None
     if args.verify:
@@ -317,22 +318,23 @@ def main() -> int:
 
     # --- present scenarios -------------------------------------------------
     for step in plan:
-        monitor = step["monitor"]
+        frame = step["frame"]
         bt: ButtonType = step["button_type"]
         scale: float = step["scale"]
         fx, fy = step["fx"], step["fy"]
 
         pil = _load_pil(args.assets / _TEMPLATE_ASSET[bt], scale)
         bg = _BG_COLORS[index % len(_BG_COLORS)]
-        img = _render_and_capture(root, monitor, pil, fx, fy, bg, capture, args.settle)
+        img = _render_and_capture(root, frame, pil, fx, fy, bg, capture, args.settle)
 
-        phys = _match_physical(monitor, capture.screen_monitors)
-        point = _ground_truth_point(phys, fx, fy, capture.min_x, capture.min_y)
+        # Ground truth in frame-image px: the window covers the monitor, so a
+        # button drawn at fraction (fx, fy) sits at that fraction of the frame.
+        point = (int(round(fx * frame.width)), int(round(fy * frame.height)))
 
-        # tolerance ~ half the button's physical size + margin
-        scale_x = phys["width"] / monitor.width
+        # tolerance ~ half the button size + margin (Tk renders in physical
+        # pixels under per-monitor awareness, so PIL size == captured size)
         pw, ph = pil.size
-        tol = int(0.5 * max(pw * scale_x, ph * scale_x) + 25)
+        tol = int(0.5 * max(pw, ph) + 25)
 
         filename = f"{args.prefix}_{index:03d}.png"
         _save_png_unicode_safe(args.out / filename, img)
@@ -344,12 +346,9 @@ def main() -> int:
             "point": [point[0], point[1]],
             "tolerance_px": tol,
             "meta": {
-                "resolution": resolution,
-                "monitor_index": step["monitor_index"],
-                "monitors": len(monitors),
+                **_frame_meta(frame, virtual_layout, awareness.value),
                 "scale": scale,
                 "position": [fx, fy],
-                "source": "scenario",
             },
         }
         cases.append(case)
@@ -364,18 +363,18 @@ def main() -> int:
                 hit = "ok" if err <= tol else "OFF"
                 note = f"  detect={res.num_matches}m err={err:.0f}px({hit})"
         print(
-            f"[{index:03d}] mon{step['monitor_index']} {bt.value:<10} "
+            f"[{index:03d}] mon{frame.index} {bt.value:<10} "
             f"x{scale} @({fx},{fy}) -> gt={point} tol={tol}{note}"
         )
         index += 1
 
     # --- negative scenarios ------------------------------------------------
     neg_types = [t.value for t in types][:2] or [ButtonType.VORTEX.value]
-    for monitor_index, monitor in enumerate(target_monitors):
+    for frame in target_frames:
         for n in range(args.negatives):
             bg = _BG_COLORS[index % len(_BG_COLORS)]
             img = _render_and_capture(
-                root, monitor, None, 0.5, 0.5, bg, capture, args.settle
+                root, frame, None, 0.5, 0.5, bg, capture, args.settle
             )
             filename = f"{args.prefix}_{index:03d}.png"
             _save_png_unicode_safe(args.out / filename, img)
@@ -385,15 +384,10 @@ def main() -> int:
                     "image": f"real/{filename}",
                     "button_type": absent_type,
                     "expect": "absent",
-                    "meta": {
-                        "resolution": resolution,
-                        "monitor_index": monitor_index,
-                        "monitors": len(monitors),
-                        "source": "scenario",
-                    },
+                    "meta": _frame_meta(frame, virtual_layout, awareness.value),
                 }
             )
-            print(f"[{index:03d}] mon{monitor_index} negative -> absent {absent_type}")
+            print(f"[{index:03d}] mon{frame.index} negative -> absent {absent_type}")
             index += 1
 
     root.destroy()

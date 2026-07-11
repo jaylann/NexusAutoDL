@@ -9,6 +9,8 @@ import time
 from typing import Optional
 
 from models import BoundingBox, BrowserType, Monitor
+from services.geometry import MonitorFrame, VirtualDesktop
+from utils.dpi import ensure_dpi_awareness
 from utils.platform import IS_WINDOWS, user32, win32api, win32gui
 from utils.logger import get_logger
 
@@ -18,22 +20,36 @@ logger = get_logger(__name__)
 class WindowManager:
     """Manages window positioning and browser launching."""
 
-    def __init__(self, monitors: list[Monitor]) -> None:
+    def __init__(self, desktop: VirtualDesktop) -> None:
         """
         Initialize window manager.
 
         Args:
-            monitors: List of available monitors
+            desktop: Monitor layout in physical virtual-desktop pixels
         """
         if not IS_WINDOWS:
             raise RuntimeError("WindowManager is only available on Windows hosts")
 
-        self.monitors: list[Monitor] = monitors
+        self.desktop = desktop
         logger.info("Window manager initialized")
+
+    def _place_window(self, handle: int, frame: MonitorFrame) -> None:
+        """Move a window onto a monitor and maximize it there."""
+        user32.ShowWindow(handle, 1)  # SW_SHOWNORMAL
+        win32gui.SetWindowPos(
+            handle,
+            None,
+            frame.left,
+            frame.top,
+            frame.width,
+            frame.height,
+            True,
+        )
+        user32.ShowWindow(handle, 3)  # SW_MAXIMIZE
 
     def launch_browser(self, browser: BrowserType) -> None:
         """
-        Launch and position browser.
+        Launch and position browser on the primary monitor.
 
         Args:
             browser: Browser type to launch
@@ -65,24 +81,13 @@ class WindowManager:
             logger.warning(f"Could not find {browser.value} window")
             return
 
-        if len(self.monitors) > 1:
-            primary: Monitor = self.monitors[0]
-            user32.ShowWindow(h_browser, 1)  # SW_SHOWNORMAL
-            win32gui.SetWindowPos(
-                h_browser,
-                None,
-                primary.x,
-                primary.y,
-                primary.width,
-                primary.height,
-                True,
-            )
-            user32.ShowWindow(h_browser, 3)  # SW_MAXIMIZE
+        if len(self.desktop.frames) > 1:
+            self._place_window(h_browser, self.desktop.primary)
 
         logger.info(f"{browser.value} positioned successfully")
 
     def position_vortex(self) -> None:
-        """Position Vortex window on secondary monitor."""
+        """Position Vortex window on the first secondary monitor."""
         vortex_handle: int = user32.FindWindowW(None, "Vortex")
 
         if vortex_handle == 0:
@@ -91,25 +96,15 @@ class WindowManager:
 
         logger.info("Found Vortex window")
 
-        if len(self.monitors) > 1:
-            secondary: Monitor = self.monitors[1]
-            user32.ShowWindow(vortex_handle, 1)  # SW_SHOWNORMAL
-            win32gui.SetWindowPos(
-                vortex_handle,
-                None,
-                secondary.x,
-                secondary.y,
-                secondary.width,
-                secondary.height,
-                True,
-            )
-            user32.ShowWindow(vortex_handle, 3)  # SW_MAXIMIZE
+        secondaries = self.desktop.secondaries
+        if secondaries:
+            self._place_window(vortex_handle, secondaries[0])
 
         logger.info("Vortex positioned successfully")
 
     def position_window_by_title(self, title_substr: str) -> None:
         """
-        Position window matching title substring.
+        Position window matching title substring on the primary monitor.
 
         Args:
             title_substr: Substring to match in window title
@@ -135,13 +130,8 @@ class WindowManager:
         window_title: str = win32gui.GetWindowText(handle)
         logger.info(f"Found window '{window_title}' matching '{title_substr}'")
 
-        if len(self.monitors) > 1:
-            primary = self.monitors[0]
-            user32.ShowWindow(handle, 1)
-            win32gui.SetWindowPos(
-                handle, None, primary.x, primary.y, primary.width, primary.height, True
-            )
-            user32.ShowWindow(handle, 3)
+        if len(self.desktop.frames) > 1:
+            self._place_window(handle, self.desktop.primary)
 
         logger.info(f"Window '{window_title}' positioned")
 
@@ -167,11 +157,15 @@ class WindowManager:
     @staticmethod
     def get_all_monitors() -> list[Monitor]:
         """
-        Get all available monitors.
+        Get all available monitors (physical pixels; primary first).
 
         Returns:
             List of Monitor objects
         """
+        # Must precede the EnumDisplayMonitors call: an unaware process gets
+        # DPI-virtualized (logical) bounds that disagree with captured pixels.
+        ensure_dpi_awareness()
+
         raw_monitors = win32api.EnumDisplayMonitors(None, None)
         monitors: list[Monitor] = []
 
@@ -179,6 +173,8 @@ class WindowManager:
             x, y, right, bottom = rect
             monitor = Monitor(x=x, y=y, width=right - x, height=bottom - y)
             monitors.append(monitor)
+
+        monitors.sort(key=lambda m: (m.x != 0 or m.y != 0, m.x, m.y))
 
         logger.info(f"Found {len(monitors)} monitors: {monitors}")
         return monitors
