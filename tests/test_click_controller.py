@@ -66,3 +66,26 @@ def test_click_in_dead_zone_is_refused() -> None:
     assert not controller.click(2200, 500, delay=0)
     assert _button_events() == []
     assert all(e[0] != "move" for e in mock_win32.state.events)
+
+
+def test_send_input_failure_falls_back_to_mouse_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from services import click_controller as cc_module
+
+    def blocked(flags: int) -> None:
+        raise OSError("SendInput blocked")
+
+    monkeypatch.setattr(cc_module, "send_input_mouse", blocked)
+    controller = _controller("single", restore_cursor=False)
+
+    assert controller.click(100, 200, delay=0)
+
+    legacy = [e for e in mock_win32.state.events if e[0] == "mouse_event"]
+    assert [e[1] for e in legacy] == [LEFTDOWN, LEFTUP]
+
+
+def test_double_click_counts_two_clicks() -> None:
+    controller = _controller("single", restore_cursor=False)
+    assert controller.double_click(300, 300, delay=0)
+    assert len(_button_events()) == 4
