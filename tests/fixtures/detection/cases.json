@@ -1,0 +1,292 @@
+{
+  "cases": [
+    {
+      "image": "synthetic/vortex_100.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        690,
+        336
+      ],
+      "tolerance_px": 225,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_125.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        743,
+        345
+      ],
+      "tolerance_px": 278,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_150.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        795,
+        354
+      ],
+      "tolerance_px": 330,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/website_100.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        713,
+        333
+      ],
+      "tolerance_px": 248,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/website_125.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        771,
+        341
+      ],
+      "tolerance_px": 306,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/website_150.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        829,
+        350
+      ],
+      "tolerance_px": 364,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/wabbajack_100.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        589,
+        320
+      ],
+      "tolerance_px": 124,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/wabbajack_125.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        616,
+        325
+      ],
+      "tolerance_px": 151,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/wabbajack_150.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        643,
+        330
+      ],
+      "tolerance_px": 178,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/click_100.png",
+      "button_type": "click",
+      "expect": "present",
+      "point": [
+        572,
+        325
+      ],
+      "tolerance_px": 107,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/click_125.png",
+      "button_type": "click",
+      "expect": "present",
+      "point": [
+        595,
+        331
+      ],
+      "tolerance_px": 130,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/click_150.png",
+      "button_type": "click",
+      "expect": "present",
+      "point": [
+        618,
+        338
+      ],
+      "tolerance_px": 153,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/understood_100.png",
+      "button_type": "understood",
+      "expect": "present",
+      "point": [
+        527,
+        317
+      ],
+      "tolerance_px": 62,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/understood_125.png",
+      "button_type": "understood",
+      "expect": "present",
+      "point": [
+        539,
+        321
+      ],
+      "tolerance_px": 74,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/understood_150.png",
+      "button_type": "understood",
+      "expect": "present",
+      "point": [
+        551,
+        326
+      ],
+      "tolerance_px": 86,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/staging_100.png",
+      "button_type": "staging",
+      "expect": "present",
+      "point": [
+        570,
+        315
+      ],
+      "tolerance_px": 105,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/staging_125.png",
+      "button_type": "staging",
+      "expect": "present",
+      "point": [
+        592,
+        318
+      ],
+      "tolerance_px": 127,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/staging_150.png",
+      "button_type": "staging",
+      "expect": "present",
+      "point": [
+        615,
+        322
+      ],
+      "tolerance_px": 150,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/empty_0.png",
+      "button_type": "vortex",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/empty_1.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "source": "synthetic"
+      }
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+# Development / test-only dependencies.
+# Runtime deps stay in requirements.txt; install both for the test suite:
+#   pip install -r requirements.txt -r requirements-dev.txt
+
+pytest>=8.0.0,<9.0.0
