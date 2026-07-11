@@ -56,8 +56,11 @@ class DebugRecorder:
     ) -> None:
         """Draw a bounding box and caption for a detection."""
         img_height, img_width = image.shape[:2]
-        box_width: int = detection.template_width or DEFAULT_DEBUG_WIDTH
-        box_height: int = detection.template_height or DEFAULT_DEBUG_HEIGHT
+        scale: float = detection.scale or 1.0
+        box_width: int = int((detection.template_width or DEFAULT_DEBUG_WIDTH) * scale)
+        box_height: int = int(
+            (detection.template_height or DEFAULT_DEBUG_HEIGHT) * scale
+        )
         half_w: int = box_width // 2
         half_h: int = box_height // 2
 

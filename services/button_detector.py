@@ -35,6 +35,15 @@ MIN_INLIER_RATIO = 0.5
 SCALE_RANGE = (0.5, 2.0)
 MAX_ROTATION_DEG = 5.0
 
+# Normalized cross-correlation fallback for templates too small/featureless for
+# SIFT. The geometric scale ladder steps ~9% per rung; NCC on these templates
+# still correlates >0.9 within +-4.5% scale error. True positives measure 0.97+
+# while cross-template false matches stay near 0.2, leaving wide margin at 0.80.
+TM_THRESHOLD = 0.80
+TM_SCALES: tuple[float, ...] = tuple(
+    round(0.60 * (2.00 / 0.60) ** (i / 14), 4) for i in range(15)
+)
+
 
 class ButtonDetector:
     """Detects buttons in screenshots using SIFT."""
@@ -305,6 +314,59 @@ class ButtonDetector:
             method="sift",
         )
 
+    def _match_ncc(
+        self,
+        template: TemplateCandidate,
+        scene_gray: npt.NDArray[np.uint8],
+        button_type: ButtonType,
+        offset_x: int,
+        offset_y: int,
+    ) -> Optional[DetectionResult]:
+        """Multi-scale normalized cross-correlation fallback."""
+        scene_h, scene_w = scene_gray.shape[:2]
+        best: Optional[tuple[float, tuple[int, int], float, int, int]] = None
+
+        for scale in TM_SCALES:
+            sw = max(1, round(template.width * scale))
+            sh = max(1, round(template.height * scale))
+            if sw > scene_w or sh > scene_h or sw < 8 or sh < 8:
+                continue
+            interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
+            resized = cv2.resize(template.gray, (sw, sh), interpolation=interpolation)
+            result = cv2.matchTemplate(scene_gray, resized, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
+            if best is None or max_val > best[0]:
+                best = (float(max_val), max_loc, scale, sw, sh)
+
+        if best is None or best[0] < TM_THRESHOLD:
+            if best is not None:
+                logger.debug(
+                    f"{button_type}: NCC peak {best[0]:.2f} below {TM_THRESHOLD}"
+                )
+            return None
+
+        peak, (px, py), scale, sw, sh = best
+        cx = px + sw / 2.0 + offset_x
+        cy = py + sh / 2.0 + offset_y
+
+        logger.info(
+            f"Detected {button_type} at ({int(cx)}, {int(cy)}) via template "
+            f"matching (peak {peak:.2f}, scale {scale:.2f})"
+        )
+
+        return DetectionResult(
+            button_type=button_type,
+            x=int(cx),
+            y=int(cy),
+            confidence=min(peak, 1.0),
+            num_matches=0,
+            template_width=template.width,
+            template_height=template.height,
+            scale=scale,
+            inliers=None,
+            method="template",
+        )
+
     def detect(
         self,
         img: npt.NDArray[np.uint8],
@@ -353,28 +415,40 @@ class ButtonDetector:
         gray = cv2.cvtColor(img_to_search, cv2.COLOR_RGB2GRAY)
         kps, des = self.sift.detectAndCompute(gray, mask=None)
 
-        if des is None or len(kps) == 0:
-            logger.debug(f"No keypoints found for {button_type}")
-            return None
-
         best_result: Optional[DetectionResult] = None
-        for template in template_candidates:
-            result: Optional[DetectionResult] = self._match_sift(
-                template,
-                kps,
-                des,
-                button_type,
-                min_matches,
-                ratio,
-                offset_x,
-                offset_y,
-            )
-            if result and (
-                best_result is None
-                or (result.inliers or 0, result.confidence)
-                > (best_result.inliers or 0, best_result.confidence)
-            ):
-                best_result = result
+        if des is not None and len(kps) > 0:
+            for template in template_candidates:
+                result: Optional[DetectionResult] = self._match_sift(
+                    template,
+                    kps,
+                    des,
+                    button_type,
+                    min_matches,
+                    ratio,
+                    offset_x,
+                    offset_y,
+                )
+                if result and (
+                    best_result is None
+                    or (result.inliers or 0, result.confidence)
+                    > (best_result.inliers or 0, best_result.confidence)
+                ):
+                    best_result = result
+        else:
+            logger.debug(f"No scene keypoints found for {button_type}")
+
+        # Fall back to multi-scale template matching when the feature path
+        # finds nothing (small/low-feature templates, sub-1.0 DPI scales).
+        if best_result is None:
+            for template in template_candidates:
+                ncc_result = self._match_ncc(
+                    template, gray, button_type, offset_x, offset_y
+                )
+                if ncc_result and (
+                    best_result is None
+                    or ncc_result.confidence > best_result.confidence
+                ):
+                    best_result = ncc_result
 
         if best_result is None:
             logger.debug(
