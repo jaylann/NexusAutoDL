@@ -3,9 +3,10 @@
 Issue #13 is about coordinate/DPI math, so a fixture must equal the array
 ``ButtonDetector.detect`` actually receives -- not a generic OS screenshot.
 This helper builds the same ``WindowManager`` + ``ScreenCapture`` stack that
-``app.py`` uses on Windows, grabs the capture region via ``ScreenCapture.capture``
-(raw RGB, no annotation -- unlike ``DebugRecorder``, which only fires on a hit
-and draws a box), and writes unicode-safe PNGs into the fixtures tree.
+``app.py`` uses on Windows, grabs every monitor frame via
+``ScreenCapture.capture_frames`` (raw RGB, no annotation -- unlike
+``DebugRecorder``, which only fires on a hit and draws a box), and writes
+unicode-safe PNGs into the fixtures tree.
 
 Windows-only (guarded by ``utils.platform.IS_WINDOWS``). The cross-platform
 pytest harness consumes the PNGs afterward on any OS.
@@ -33,6 +34,7 @@ import numpy as np
 # Ensure repo root is importable when run as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from utils.dpi import ensure_dpi_awareness  # noqa: E402
 from utils.platform import IS_WINDOWS  # noqa: E402
 
 
@@ -65,7 +67,9 @@ def _label_point(rgb: np.ndarray) -> tuple[int, int] | None:
 
 
 def _stub_case(
-    image_rel: str, point: tuple[int, int] | None, geometry: dict[str, int]
+    image_rel: str,
+    point: tuple[int, int] | None,
+    frame_meta: dict[str, object],
 ) -> dict[str, object]:
     """Build a cases.json stub entry for a freshly captured frame."""
     case: dict[str, object] = {
@@ -73,12 +77,7 @@ def _stub_case(
         "button_type": "TODO",  # fill in: vortex/website/wabbajack/click/understood/staging
         "expect": "present",
         "tolerance_px": 40,
-        "meta": {
-            "resolution": f"{geometry['width']}x{geometry['height']}",
-            "dpi": "TODO",
-            "monitors": "TODO",
-            "source": "capture_fixtures",
-        },
+        "meta": frame_meta,
     }
     if point is not None:
         case["point"] = [point[0], point[1]]
@@ -114,26 +113,27 @@ def main() -> int:
         )
         return 1
 
+    # Before any win32/mss call, exactly like main.py.
+    awareness = ensure_dpi_awareness()
+
     # Imported lazily: WindowManager raises on non-Windows at import-time use.
     from services.screen_capture import ScreenCapture
     from services.window_manager import WindowManager
 
     monitors = WindowManager.get_all_monitors()
     capture = ScreenCapture(monitors, force_primary=args.force_primary)
-    geometry = {
-        "left": capture.min_x,
-        "top": capture.min_y,
-        "width": capture.virtual_width,
-        "height": capture.virtual_height,
-    }
 
-    print(f"Monitors ({len(monitors)}):")
-    for i, m in enumerate(monitors):
-        print(f"  [{i}] x={m.x} y={m.y} {m.width}x{m.height}")
-    print(f"Capture region: {geometry}")
+    print(f"DPI awareness: {awareness.value}")
+    print(f"Monitors ({len(capture.desktop.frames)}):")
+    for frame in capture.desktop.frames:
+        print(
+            f"  [{frame.index}] origin=({frame.left},{frame.top}) "
+            f"{frame.width}x{frame.height}"
+        )
     print(f"Output dir: {args.out.resolve()}")
     print(
-        "Reproduce a scenario, then press <enter> to capture. Type 'q' + <enter> to quit.\n"
+        "Reproduce a scenario, then press <enter> to capture every monitor. "
+        "Type 'q' + <enter> to quit.\n"
     )
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -141,21 +141,39 @@ def main() -> int:
     stubs: list[dict[str, object]] = []
     index = 0
 
+    virtual_layout = [
+        [f.left, f.top, f.width, f.height] for f in capture.desktop.frames
+    ]
+
     while True:
         cmd = input(f"[{index}] capture (enter) / quit (q): ").strip().lower()
         if cmd == "q":
             break
 
-        rgb = capture.capture()
-        filename = f"{args.prefix}_{index:03d}.png"
-        path = args.out / filename
-        _save_png_unicode_safe(path, rgb)
-        print(f"  saved {path} ({rgb.shape[1]}x{rgb.shape[0]})")
+        for captured in capture.capture_frames():
+            frame = captured.frame
+            filename = f"{args.prefix}_{index:03d}_m{frame.index}.png"
+            path = args.out / filename
+            _save_png_unicode_safe(path, captured.image)
+            print(f"  saved {path} ({frame.width}x{frame.height})")
 
-        point = _label_point(rgb) if args.label else None
-        if point is not None:
-            print(f"  labeled point: {point}")
-        stubs.append(_stub_case(f"real/{filename}", point, geometry))
+            point = _label_point(captured.image) if args.label else None
+            if point is not None:
+                print(f"  labeled point: {point}")
+            frame_meta: dict[str, object] = {
+                "resolution": f"{frame.width}x{frame.height}",
+                "frame": {
+                    "left": frame.left,
+                    "top": frame.top,
+                    "width": frame.width,
+                    "height": frame.height,
+                },
+                "virtual_layout": virtual_layout,
+                "dpi_awareness": awareness.value,
+                "monitor_index": frame.index,
+                "source": "capture_fixtures",
+            }
+            stubs.append(_stub_case(f"real/{filename}", point, frame_meta))
         index += 1
 
     if stubs:
@@ -164,7 +182,7 @@ def main() -> int:
         )
         print(
             f"\nWrote {len(stubs)} stub case(s) to {stub_path}.\n"
-            "Fill in button_type / expect / meta, label any missing points, then "
+            "Fill in button_type / expect, label any missing points, then "
             "merge the entries into tests/fixtures/detection/cases.json."
         )
     return 0

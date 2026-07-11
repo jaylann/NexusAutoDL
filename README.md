@@ -222,8 +222,8 @@ python main.py --vortex --browser chrome
 ```
 
 **What it does:**
-- Captures entire virtual desktop (all monitors)
-- Detects buttons anywhere on screen
+- Captures every monitor as its own frame (works with negative origins, portrait displays, mixed DPI scaling and non-contiguous layouts)
+- Detects buttons anywhere on any screen
 - Positions windows automatically
 
 **Best for:** Multi-monitor setups where windows may be on any display
@@ -370,14 +370,11 @@ python main.py --help
 <summary><b>Problem: Buttons detected but clicks miss target</b></summary>
 
 **Possible Causes:**
-- DPI scaling issues on Windows
 - Window moved between detection and click
-- Incorrect coordinate transformation
+- DPI awareness could not be set (very old Windows, or another component locked it first)
 
 **Solutions:**
-1. Disable Windows DPI scaling for Python:
-   - Right-click `python.exe` → Properties → Compatibility
-   - Check "Override high DPI scaling behavior"
+1. NexusAutoDL declares per-monitor DPI awareness itself at startup — no compatibility overrides needed. Run with `--verbose` and check the logged `Process DPI awareness` level; anything below `system` means clicks may be scaled wrong.
 2. Increase `--click-delay` to ensure pages load:
    ```bash
    python main.py --click-delay 3.0
