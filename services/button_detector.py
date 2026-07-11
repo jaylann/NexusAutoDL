@@ -37,12 +37,21 @@ MAX_ROTATION_DEG = 5.0
 
 # Normalized cross-correlation fallback for templates too small/featureless for
 # SIFT. The geometric scale ladder steps ~9% per rung; NCC on these templates
-# still correlates >0.9 within +-4.5% scale error. True positives measure 0.97+
-# while cross-template false matches stay near 0.2, leaving wide margin at 0.80.
-TM_THRESHOLD = 0.80
+# still correlates >0.9 within +-4.5% scale error. Downscaled thin-text
+# templates bottom out around 0.78 (resampling blur) while cross-template false
+# matches stay below 0.5, so 0.75 keeps a real margin on both sides.
+TM_THRESHOLD = 0.75
 TM_SCALES: tuple[float, ...] = tuple(
     round(0.60 * (2.00 / 0.60) ** (i / 14), 4) for i in range(15)
 )
+
+# Appearance verification of accepted SIFT fits: NCC between the scene region
+# the transform predicts and the template at the recovered scale. A coherent
+# text-fragment match (one shared word inside a *different* button) scores
+# ~0.5 here while true matches measure >=0.8; the small search pad absorbs
+# sub-pixel misalignment of the projected region.
+VERIFY_NCC_THRESHOLD = 0.60
+VERIFY_SEARCH_PAD = 6
 
 
 class ButtonDetector:
@@ -237,11 +246,39 @@ class ButtonDetector:
         py = transform[1, 0] * cx + transform[1, 1] * cy + transform[1, 2]
         return float(px), float(py)
 
+    def _verify_match(
+        self,
+        template: TemplateCandidate,
+        scene_gray: npt.NDArray[np.uint8],
+        cx: float,
+        cy: float,
+        scale: float,
+    ) -> float:
+        """NCC between the predicted scene region and the scaled template."""
+        sw = max(8, round(template.width * scale))
+        sh = max(8, round(template.height * scale))
+        interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
+        resized = cv2.resize(template.gray, (sw, sh), interpolation=interpolation)
+
+        scene_h, scene_w = scene_gray.shape[:2]
+        x1 = max(0, int(cx - sw / 2) - VERIFY_SEARCH_PAD)
+        y1 = max(0, int(cy - sh / 2) - VERIFY_SEARCH_PAD)
+        x2 = min(scene_w, int(cx + sw / 2) + VERIFY_SEARCH_PAD)
+        y2 = min(scene_h, int(cy + sh / 2) + VERIFY_SEARCH_PAD)
+        if x2 - x1 < sw or y2 - y1 < sh:
+            return -1.0
+
+        result = cv2.matchTemplate(
+            scene_gray[y1:y2, x1:x2], resized, cv2.TM_CCOEFF_NORMED
+        )
+        return float(result.max())
+
     def _match_sift(
         self,
         template: TemplateCandidate,
         kps: list[cv2.KeyPoint],
         des: npt.NDArray[np.float32],
+        scene_gray: npt.NDArray[np.uint8],
         button_type: ButtonType,
         min_matches: int,
         ratio: float,
@@ -289,6 +326,17 @@ class ButtonDetector:
         scale, rotation_deg = validated
 
         cx, cy = self._project_center(transform, template.width, template.height)
+
+        # Appearance check: a geometrically coherent fit can still be a shared
+        # text fragment inside a different button (e.g. "download" glyphs).
+        verify_score = self._verify_match(template, scene_gray, cx, cy, scale)
+        if verify_score < VERIFY_NCC_THRESHOLD:
+            logger.debug(
+                f"{button_type}: rejected fit, appearance check scored "
+                f"{verify_score:.2f} (need {VERIFY_NCC_THRESHOLD})"
+            )
+            return None
+
         cx += offset_x
         cy += offset_y
         confidence = min(
@@ -422,6 +470,7 @@ class ButtonDetector:
                     template,
                     kps,
                     des,
+                    gray,
                     button_type,
                     min_matches,
                     ratio,
