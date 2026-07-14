@@ -8,12 +8,8 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 
-import numpy as np
-import numpy.typing as npt
-
 from models import (
     AppConfig,
-    BoundingBox,
     ButtonType,
     DetectionResult,
     Monitor,
@@ -23,7 +19,8 @@ from models import (
 from services.button_detector import ButtonDetector
 from services.click_controller import ClickController
 from services.debug_recorder import DebugRecorder
-from services.screen_capture import ScreenCapture
+from services.geometry import MonitorFrame, compute_search_bbox
+from services.screen_capture import CapturedFrame, ScreenCapture
 from services.window_manager import WindowManager
 from utils.logger import get_logger
 
@@ -56,8 +53,8 @@ class Scanner:
         # Initialize components
         self.screen_capture = ScreenCapture(monitors, config.force_primary)
         self.button_detector = ButtonDetector(use_legacy_buttons=self.config.legacy)
-        self.window_manager = WindowManager(monitors)
-        self.click_controller = ClickController()
+        self.window_manager = WindowManager(self.screen_capture.desktop)
+        self.click_controller = ClickController(self.screen_capture.desktop)
         debug_path = (
             Path(self.config.debug_frame_dir) if self.config.debug_frame_dir else None
         )
@@ -101,63 +98,54 @@ class Scanner:
         if self.status_callback:
             self.status_callback(self.status)
 
-    def _click_detection(self, detection: DetectionResult) -> None:
+    def _click_detection(self, detection: DetectionResult, frame: MonitorFrame) -> bool:
         """
         Click on a detection result.
 
         Args:
             detection: Detection to click
-        """
-        # Convert image coords to monitor coords
-        mon_x: int
-        mon_y: int
-        mon_x, mon_y = self.screen_capture.img_coords_to_monitor_coords(
-            detection.x, detection.y
-        )
+            frame: Monitor frame the detection was found in
 
-        self.click_controller.click(mon_x, mon_y)
+        Returns:
+            True if the click was performed
+        """
+        virtual_x, virtual_y = frame.to_virtual(detection.x, detection.y)
+
+        if not self.click_controller.click(virtual_x, virtual_y):
+            return False
+
         self.status.clicks_count += 1
         self.status.detections.append(detection)
         self._update_status()
+        return True
 
     def _handle_vortex_state(
         self,
-        img: npt.NDArray[np.uint8],
+        captured: CapturedFrame,
         iteration: int,
     ) -> bool:
         """
         Handle Vortex button detection state.
 
         Args:
-            img: Current screenshot
+            captured: Current frame of the monitor hosting Vortex
 
         Returns:
             True if Vortex button found and clicked
         """
-        # Get Vortex window bbox
-        vortex_bbox = self.window_manager.get_vortex_bbox()
-        if not vortex_bbox:
+        # Get Vortex window bbox (virtual-desktop coords)
+        vortex_rect = self.window_manager.get_vortex_bbox()
+        if not vortex_rect:
             self.status.current_action = "Waiting for Vortex window..."
             self._update_status()
             return False
 
-        # Convert to image coordinates and pad
-        img_x1: int
-        img_y1: int
-        img_x1, img_y1 = self.screen_capture.monitor_coords_to_img_coords(
-            vortex_bbox.x1, vortex_bbox.y1
-        )
-        img_x2: int
-        img_y2: int
-        img_x2, img_y2 = self.screen_capture.monitor_coords_to_img_coords(
-            vortex_bbox.x2, vortex_bbox.y2
-        )
+        padded_bbox = compute_search_bbox(vortex_rect, captured.frame)
+        if padded_bbox is None:
+            # Vortex lives on another monitor; nothing to do in this frame.
+            return False
 
-        bbox: BoundingBox = BoundingBox(x1=img_x1, y1=img_y1, x2=img_x2, y2=img_y2)
-
-        # Calculate padding factor
-        fac: float = 5 + (5 - vortex_bbox.x1 / 512)
-        padded_bbox: BoundingBox = bbox.pad(1 / fac)
+        img = captured.image
 
         # Check for popup dialogs first (legacy workflow only)
         if self.config.legacy:
@@ -177,9 +165,12 @@ class Scanner:
                     self.status.current_action = action
                     self._update_status()
                     self.debug_recorder.record(
-                        img, detection, iteration, f"popup_{button_type.value}"
+                        img,
+                        detection,
+                        iteration,
+                        f"m{captured.frame.index}_popup_{button_type.value}",
                     )
-                    self._click_detection(detection)
+                    self._click_detection(detection, captured.frame)
                     time.sleep(self.config.retry_delay)
                     return False
 
@@ -196,10 +187,12 @@ class Scanner:
             self.status.current_action = "Clicking Vortex download button"
             self._update_status()
             self.debug_recorder.record(
-                img, vortex_detection, iteration, "vortex_download"
+                img,
+                vortex_detection,
+                iteration,
+                f"m{captured.frame.index}_vortex_download",
             )
-            self._click_detection(vortex_detection)
-            return True
+            return self._click_detection(vortex_detection, captured.frame)
 
         self.status.current_action = "Searching for Vortex button..."
         self._update_status()
@@ -207,28 +200,42 @@ class Scanner:
 
     def _handle_web_state(
         self,
-        img: npt.NDArray[np.uint8],
+        captured: CapturedFrame,
         iteration: int,
-    ) -> tuple[bool, bool]:
+    ) -> Optional[bool]:
         """
-        Handle web download button detection state.
+        Handle web download button detection on one frame.
 
         Args:
-            img: Current screenshot
+            captured: Current frame
 
         Returns:
-            Tuple of (clicked_web_button, should_reset_to_vortex)
+            True if a web button was clicked, None if nothing was found
+            in this frame (caller decides about retries across frames)
         """
-        targets: list[tuple[ButtonType, str]] = [
-            (ButtonType.WEBSITE, "website download button")
-        ]
+        targets: list[tuple[ButtonType, str]] = []
+
+        # Nexus's beta "resumable downloads" flow interposes a modal offering
+        # "Standard download" vs "Resumable download" after a download click
+        # (files >500MB). The resumable option streams via the File System API
+        # save dialog, which Wabbajack/the browser download watcher can't
+        # intercept, so take "Standard download" to dismiss the modal and keep
+        # the normal flow. Scoped to the non-Vortex (browser/Wabbajack) path;
+        # it is a no-op until the optional StandardDownloadButton.png asset is
+        # present (no template -> detect() returns None).
+        if not self.config.vortex:
+            targets.append(
+                (ButtonType.STANDARD_DOWNLOAD, "Standard download (resumable prompt)")
+            )
+
+        targets.append((ButtonType.WEBSITE, "website download button"))
 
         if not self.config.vortex:
             targets.append((ButtonType.WABBAJACK, "Wabbajack download button"))
 
         for button_type, label in targets:
             detection: Optional[DetectionResult] = self.button_detector.detect(
-                img,
+                captured.image,
                 button_type,
                 min_matches=6,
                 ratio=self.config.ratio_threshold,
@@ -238,12 +245,24 @@ class Scanner:
                 self.status.current_action = f"Clicking {label}"
                 self._update_status()
                 self.debug_recorder.record(
-                    img, detection, iteration, f"web_{button_type.value}"
+                    captured.image,
+                    detection,
+                    iteration,
+                    f"m{captured.frame.index}_web_{button_type.value}",
                 )
-                self._click_detection(detection)
-                self.status.web_retry_count = 0
-                return True, False
+                if self._click_detection(detection, captured.frame):
+                    self.status.web_retry_count = 0
+                    return True
 
+        return None
+
+    def _handle_web_retry(self) -> bool:
+        """
+        Track a failed web-button sweep across all frames.
+
+        Returns:
+            True if the state machine should reset to Vortex search
+        """
         retry_limit = (
             VORTEX_WEB_RETRY_LIMIT
             if self.config.vortex
@@ -259,33 +278,37 @@ class Scanner:
                 self.status.current_action = "Rechecking Vortex (web button missing)"
                 self.status.web_retry_count = 0
                 self._update_status()
-                return False, True
+                return True
 
             logger.info("Web button not found, restarting...")
             self.status.current_action = "Restarting (button not found)"
             self.status.web_retry_count = 0
             self._update_status()
-            return False, False
+            return False
 
         self.status.web_retry_count += 1
-        target_text = " or ".join(label for _, label in targets)
+        target_text = (
+            "website download button"
+            if self.config.vortex
+            else "website or Wabbajack download button"
+        )
         self.status.current_action = (
             f"Searching for {target_text}... "
             f"(attempt {self.status.web_retry_count}/{retry_limit})"
         )
         self._update_status()
-        return False, False
+        return False
 
     def _handle_click_dialog_state(
         self,
-        img: npt.NDArray[np.uint8],
+        captured: CapturedFrame,
         iteration: int,
     ) -> bool:
         """
         Handle click dialog detection state.
 
         Args:
-            img: Current screenshot
+            captured: Current frame
 
         Returns:
             True if dialog found and clicked
@@ -296,19 +319,25 @@ class Scanner:
             return True
 
         click_detection: Optional[DetectionResult] = self.button_detector.detect(
-            img, ButtonType.CLICK, min_matches=6, ratio=self.config.ratio_threshold
+            captured.image,
+            ButtonType.CLICK,
+            min_matches=6,
+            ratio=self.config.ratio_threshold,
         )
 
         if click_detection:
             self.status.current_action = "Clicking dialog button"
             self._update_status()
-            self.debug_recorder.record(img, click_detection, iteration, "click_dialog")
-            self._click_detection(click_detection)
+            self.debug_recorder.record(
+                captured.image,
+                click_detection,
+                iteration,
+                f"m{captured.frame.index}_click_dialog",
+            )
+            self._click_detection(click_detection, captured.frame)
             time.sleep(3)  # Wait for dialog to process
             return True
 
-        self.status.current_action = "Waiting for click dialog..."
-        self._update_status()
         return False
 
     def scan_loop(self, max_iterations: Optional[int] = None) -> None:
@@ -335,20 +364,30 @@ class Scanner:
                     break
                 iteration += 1
 
-                # Capture screen
-                img = self.screen_capture.capture()
+                # Capture every monitor; each handler checks the frames it
+                # cares about, so windows may live on any monitor.
+                frames = self.screen_capture.capture_frames()
 
                 # State machine
                 if not vortex_found and self.config.vortex:
                     self.status.state = ScanState.WAITING_FOR_VORTEX
-                    vortex_found = self._handle_vortex_state(img, iteration)
-                    if vortex_found:
-                        self.status.state = ScanState.VORTEX_CLICKED
-                        self._update_status()
+                    for captured in frames:
+                        if self._handle_vortex_state(captured, iteration):
+                            vortex_found = True
+                            self.status.state = ScanState.VORTEX_CLICKED
+                            self._update_status()
+                            break
 
                 elif web_clicked and self.config.vortex:
                     self.status.state = ScanState.WEB_CLICKED
-                    dialog_complete = self._handle_click_dialog_state(img, iteration)
+                    dialog_complete = False
+                    for captured in frames:
+                        if self._handle_click_dialog_state(captured, iteration):
+                            dialog_complete = True
+                            break
+                    if not dialog_complete:
+                        self.status.current_action = "Waiting for click dialog..."
+                        self._update_status()
                     if dialog_complete:
                         # Reset for next mod
                         vortex_found = False
@@ -358,16 +397,22 @@ class Scanner:
 
                 elif vortex_found or not self.config.vortex:
                     self.status.state = ScanState.WAITING_FOR_WEB
-                    web_clicked_result, reset_to_vortex = self._handle_web_state(
-                        img, iteration
-                    )
-                    if web_clicked_result:
+                    clicked = None
+                    for captured in frames:
+                        clicked = self._handle_web_state(captured, iteration)
+                        if clicked:
+                            break
+
+                    if clicked:
                         web_clicked = True
-                    if reset_to_vortex and self.config.vortex:
-                        vortex_found = False
-                        web_clicked = False
-                        self.status.state = ScanState.WAITING_FOR_VORTEX
-                        self._update_status()
+                    else:
+                        reset_to_vortex = self._handle_web_retry()
+                        if reset_to_vortex and self.config.vortex:
+                            vortex_found = False
+                            web_clicked = False
+                            self.status.state = ScanState.WAITING_FOR_VORTEX
+                            self._update_status()
+
                     if web_clicked and not self.config.vortex:
                         # Non-Vortex mode: reset immediately
                         vortex_found = False

@@ -1,165 +1,88 @@
 """
-Screen capture and coordinate conversion utilities.
+Per-monitor screen capture.
+
+Each monitor is grabbed as its own frame carrying its ``MonitorFrame``
+geometry, so detections convert back to virtual-desktop coordinates with the
+correct per-monitor offset -- exact even for negative origins, mixed-DPI and
+non-contiguous layouts (where a single virtual-desktop grab would be a huge,
+mostly-empty image with one global offset).
 """
 
 from __future__ import annotations
 
-from loguru import logger
+from typing import Callable, NamedTuple
 
 import cv2
 import mss
 import numpy as np
 import numpy.typing as npt
 
+from loguru import logger
+
 from models import Monitor
+from services.geometry import MonitorFrame, VirtualDesktop
+
+
+class CapturedFrame(NamedTuple):
+    """One monitor's screenshot plus its virtual-desktop geometry."""
+
+    image: npt.NDArray[np.uint8]  # RGB
+    frame: MonitorFrame
 
 
 class ScreenCapture:
-    """Handles screen capture and coordinate conversions."""
+    """Captures each monitor of the virtual desktop as a separate frame."""
 
-    def __init__(self, monitors: list[Monitor], force_primary: bool = False) -> None:
+    def __init__(
+        self,
+        monitors: list[Monitor],
+        force_primary: bool = False,
+        mss_factory: Callable[[], "mss.base.MSSBase"] = mss.mss,
+    ) -> None:
         """
         Initialize screen capture.
 
         Args:
-            monitors: List of available monitors
-            force_primary: Only use primary monitor
+            monitors: win32-reported monitors, used only to cross-check that
+                the process sees the same physical layout mss captures
+            force_primary: Only capture the primary monitor
+            mss_factory: Injection point for a fake mss in tests
         """
         if not monitors:
             raise ValueError("No monitors provided to ScreenCapture")
 
-        # Preserve OS-reported ordering so index 0 remains the real primary display
         self.monitors: list[Monitor] = list(monitors)
-        self.screen: mss.mss = mss.mss()
-        self.screen_monitors: list[dict[str, int]] = self.screen.monitors
+        self.screen = mss_factory()
+        self.desktop: VirtualDesktop = VirtualDesktop.from_mss_monitors(
+            self.screen.monitors
+        )
         self.force_primary = force_primary
+        self.targets: list[MonitorFrame] = (
+            [self.desktop.primary] if force_primary else list(self.desktop.frames)
+        )
 
-        self.v_monitor: dict[str, int] = self._determine_capture_region()
-        self.min_x: int = self.v_monitor["left"]
-        self.min_y: int = self.v_monitor["top"]
-        self.virtual_width: int = self.v_monitor["width"]
-        self.virtual_height: int = self.v_monitor["height"]
+        # A disagreement means win32 coordinates are DPI-virtualized; capture
+        # still works (mss geometry is authoritative) but window rects and
+        # clicks based on win32 data would be scaled wrong.
+        self.desktop.matches_win32(self.monitors)
 
         logger.info(
-            f"Initialized screen capture with {len(self.monitors)} app monitors "
-            f"and capturing region {self.v_monitor}"
+            f"Screen capture initialized: {len(self.desktop.frames)} monitor(s), "
+            f"capturing {[f.index for f in self.targets]}"
         )
 
-    def _determine_capture_region(self) -> dict[str, int]:
-        """Select the monitor region to capture."""
-        if self.force_primary or len(self.screen_monitors) <= 1:
-            return self._get_primary_monitor_bounds()
-
-        # screen.monitors[0] is already the full virtual desktop
-        full_virtual: dict[str, int] = self.screen_monitors[0]
-        return {
-            "top": full_virtual["top"],
-            "left": full_virtual["left"],
-            "width": full_virtual["width"],
-            "height": full_virtual["height"],
-        }
-
-    def _get_primary_monitor_bounds(self) -> dict[str, int]:
-        """Resolve primary monitor bounds using MSS data for DPI-safe capture."""
-        primary_monitor: Monitor = self.monitors[0]
-        matched_monitor = self._match_monitor_to_mss(primary_monitor)
-
-        if matched_monitor:
-            return matched_monitor
-
-        logger.warning(
-            "Falling back to app monitor geometry for primary capture (MSS match failed)"
-        )
-        return {
-            "top": primary_monitor.y,
-            "left": primary_monitor.x,
-            "width": primary_monitor.width,
-            "height": primary_monitor.height,
-        }
-
-    def _match_monitor_to_mss(self, target: Monitor | None) -> dict[str, int] | None:
-        """
-        Match an app-level Monitor definition to the closest MSS monitor entry.
-
-        This keeps capture dimensions aligned with what MSS expects even when DPI
-        scaling causes win32-reported bounds to differ from raw framebuffer pixels.
-        """
-        if not self.screen_monitors:
-            return None
-
-        # MSS returns index 0 as the virtual desktop and remainder per monitor
-        physical_monitors = (
-            self.screen_monitors[1:]
-            if len(self.screen_monitors) > 1
-            else self.screen_monitors
-        )
-
-        if not physical_monitors:
-            return None
-
-        if target is None:
-            match = physical_monitors[0]
-        else:
-            match = min(
-                physical_monitors,
-                key=lambda m: (
-                    abs(m["left"] - target.x)
-                    + abs(m["top"] - target.y)
-                    + abs(m["width"] - target.width)
-                    + abs(m["height"] - target.height)
-                ),
-            )
-
-        return {
-            "top": match["top"],
-            "left": match["left"],
-            "width": match["width"],
-            "height": match["height"],
-        }
-
-    def capture(self) -> npt.NDArray[np.uint8]:
-        """
-        Capture current screen.
-
-        Returns:
-            RGB image array
-        """
-        img: npt.NDArray[np.uint8] = np.array(self.screen.grab(self.v_monitor))
-        logger.debug("Screen captured")
-        return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    def img_coords_to_monitor_coords(self, x: int, y: int) -> tuple[int, int]:
-        """
-        Convert image coordinates to monitor coordinates.
-
-        Args:
-            x: Image X coordinate
-            y: Image Y coordinate
-
-        Returns:
-            Monitor X and Y coordinates
-        """
-        return x + self.min_x, y + self.min_y
-
-    def monitor_coords_to_img_coords(self, x: int, y: int) -> tuple[int, int]:
-        """
-        Convert monitor coordinates to image coordinates.
-
-        Args:
-            x: Monitor X coordinate
-            y: Monitor Y coordinate
-
-        Returns:
-            Image X and Y coordinates
-        """
-        return x - self.min_x, y - self.min_y
-
-    @property
-    def capture_width(self) -> int:
-        """Get capture area width."""
-        return self.v_monitor["width"]
-
-    @property
-    def capture_height(self) -> int:
-        """Get capture area height."""
-        return self.v_monitor["height"]
+    def capture_frames(self) -> list[CapturedFrame]:
+        """Capture every target monitor as an RGB frame."""
+        frames: list[CapturedFrame] = []
+        for frame in self.targets:
+            region = {
+                "left": frame.left,
+                "top": frame.top,
+                "width": frame.width,
+                "height": frame.height,
+            }
+            raw: npt.NDArray[np.uint8] = np.array(self.screen.grab(region))
+            code = cv2.COLOR_BGRA2RGB if raw.shape[2] == 4 else cv2.COLOR_BGR2RGB
+            frames.append(CapturedFrame(cv2.cvtColor(raw, code), frame))
+        logger.debug(f"Captured {len(frames)} frame(s)")
+        return frames

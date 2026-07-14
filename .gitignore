@@ -19,3 +19,6 @@ nexus_autodl.log
 
 # macOS
 .DS_Store
+
+# Synthetic detection fixtures are regenerated deterministically (tests/conftest.py bootstrap)
+tests/fixtures/detection/synthetic/*.png

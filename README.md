@@ -33,6 +33,7 @@
 - **🌐 Browser Support** - Works with Chrome and Firefox browsers
 - **🔍 Smart Detection** - SIFT-based computer vision for detecting both legacy and modern Nexus Mods UI buttons
 - **📦 Wabbajack Support** - Detects and handles Wabbajack download buttons
+- **⏯️ Resumable Download Prompt** - Automatically dismisses Nexus Mods' beta "resumable downloads" modal (files >500MB) by choosing **Standard download** so the Wabbajack/browser flow keeps working (see [Resumable Downloads asset](#resumable-download-prompt-beta))
 - **🐛 Debug Mode** - Save annotated screenshots with bounding boxes to diagnose detection issues
 - **⚙️ Customizable Detection** - Fine-tune SIFT matching thresholds and timing parameters
 
@@ -158,6 +159,7 @@ python main.py --window-title "Wabbajack" --force-primary
 - Detects Wabbajack-specific download buttons
 - Monitors primary display
 - Handles Wabbajack download flow
+- Dismisses the Nexus "resumable downloads" prompt by picking **Standard download** (see [below](#resumable-download-prompt-beta))
 
 **Best for:** Wabbajack modlist installations
 
@@ -222,8 +224,8 @@ python main.py --vortex --browser chrome
 ```
 
 **What it does:**
-- Captures entire virtual desktop (all monitors)
-- Detects buttons anywhere on screen
+- Captures every monitor as its own frame (works with negative origins, portrait displays, mixed DPI scaling and non-contiguous layouts)
+- Detects buttons anywhere on any screen
 - Positions windows automatically
 
 **Best for:** Multi-monitor setups where windows may be on any display
@@ -255,6 +257,19 @@ python main.py --vortex --browser chrome
 ```bash
 python main.py --help
 ```
+
+### Resumable Download Prompt (Beta)
+
+Nexus Mods is rolling out a [resumable downloads](https://help.nexusmods.com/article/170-resumable-downloads) beta. For files over 500MB, clicking a manual download now opens a modal asking you to choose between **Standard download** and **Resumable download**. The resumable option streams the file through the browser's File System API (it pops a "save file" dialog), which Wabbajack and other browser-download watchers cannot intercept — so automation would stall on that modal.
+
+In the non-Vortex (browser / Wabbajack) flow, NexusAutoDL watches for this modal and clicks **Standard download** to clear it, keeping the normal download flow intact. This runs ahead of the regular Website/Wabbajack button detection so the modal is dismissed before anything else.
+
+Because the button varies per theme/scale, this is driven by an **optional** template asset. Detection stays dormant (a no-op) until you provide it:
+
+- Add `assets/StandardDownloadButton.png` — a tight crop of the **Standard download** button from the modal.
+- Capture it through the real pipeline with `python tools/capture_fixtures.py --out assets` (or crop a screenshot manually), matching the style of the other `assets/*Button.png` templates.
+
+Once the asset is present, `python validate.py` lists it and the clicker begins handling the prompt automatically. No CLI flag is required.
 
 ## 🐛 Troubleshooting
 
@@ -370,14 +385,11 @@ python main.py --help
 <summary><b>Problem: Buttons detected but clicks miss target</b></summary>
 
 **Possible Causes:**
-- DPI scaling issues on Windows
 - Window moved between detection and click
-- Incorrect coordinate transformation
+- DPI awareness could not be set (very old Windows, or another component locked it first)
 
 **Solutions:**
-1. Disable Windows DPI scaling for Python:
-   - Right-click `python.exe` → Properties → Compatibility
-   - Check "Override high DPI scaling behavior"
+1. NexusAutoDL declares per-monitor DPI awareness itself at startup — no compatibility overrides needed. Run with `--verbose` and check the logged `Process DPI awareness` level; anything below `system` means clicks may be scaled wrong.
 2. Increase `--click-delay` to ensure pages load:
    ```bash
    python main.py --click-delay 3.0

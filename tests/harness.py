@@ -38,6 +38,7 @@ _REQUIRED_ASSETS: dict[ButtonType, tuple[str, ...]] = {
     ButtonType.CLICK: ("ClickHereButton.png",),
     ButtonType.UNDERSTOOD: ("UnderstoodButton.png",),
     ButtonType.STAGING: ("StagingButton.png",),
+    ButtonType.STANDARD_DOWNLOAD: ("StandardDownloadButton.png",),
 }
 
 
@@ -100,13 +101,27 @@ def skip_reason(
 
 
 def case_id(case: dict[str, Any]) -> str:
-    """Readable id: ``<source>-<resolution>-<button_type>-<expect>``."""
+    """Readable id: ``<source>-<variant>-<scale>-<button_type>-<expect>``."""
     meta = case.get("meta", {})
     source = str(meta.get("source", "?")).replace(" ", "")
-    resolution = str(meta.get("resolution", "?"))
-    return f"{source}-{resolution}-{case['button_type']}-{case['expect']}"
+    variant = str(meta.get("variant", meta.get("resolution", "?")))
+    parts = [source, variant]
+    if "scale" in meta:
+        parts.append(f"x{meta['scale']}")
+    parts += [case["button_type"], case["expect"]]
+    return "-".join(parts)
 
 
 def centroid_error(result_xy: tuple[int, int], point: list[int]) -> float:
     """Euclidean distance (px) between a detection centroid and ground truth."""
     return hypot(result_xy[0] - point[0], result_xy[1] - point[1])
+
+
+def ground_truth_error(result_xy: tuple[int, int], case: dict[str, Any]) -> float:
+    """Distance (px) to the nearest ground-truth point of a present-case.
+
+    Cases carry a single ``point``; multi-instance cases additionally list all
+    valid instance centers under ``points`` -- hitting any instance counts.
+    """
+    points = case.get("points") or [case["point"]]
+    return min(centroid_error(result_xy, point) for point in points)
