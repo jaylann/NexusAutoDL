@@ -54,8 +54,12 @@ def test_no_cross_template_negative_pairs_equivalent_types() -> None:
     for case in load_cases():
         if case.get("meta", {}).get("variant") != "cross_template":
             continue
-        # image is named after the type it CONTAINS: <type>_100.png
-        contained = ButtonType(case["image"].split("/")[1].split("_")[0])
+        # image is named after the type it CONTAINS: <type>_100.png. Strip the
+        # trailing scale tag (rsplit) rather than splitting on the first "_",
+        # so button values that themselves contain "_" (e.g. standard_download)
+        # are recovered intact.
+        stem = case["image"].split("/")[1].rsplit(".", 1)[0]
+        contained = ButtonType(stem.rsplit("_", 1)[0])
         asserted_absent = ButtonType(case["button_type"])
         assert not gen._equivalent(contained, asserted_absent), case
 

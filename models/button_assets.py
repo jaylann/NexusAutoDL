@@ -18,6 +18,7 @@ class ButtonAssets(BaseModel):
     click_img: NDArray[uint8]
     understood_img: NDArray[uint8]
     staging_img: NDArray[uint8]
+    standard_download_img: Optional[NDArray[uint8]] = None
 
     class Config:
         arbitrary_types_allowed = True

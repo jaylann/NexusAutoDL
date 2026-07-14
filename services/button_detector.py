@@ -112,6 +112,8 @@ class ButtonDetector:
         optional_assets: dict[str, str] = {
             "vortex_new": "VortexDownloadButtonNew.png",
             "web_new": "WebsiteDownloadButtonNew.png",
+            # Beta resumable-download modal option; ship the PNG to activate it.
+            "standard_download": "StandardDownloadButton.png",
         }
 
         def read_rgb(path: Path) -> npt.NDArray[np.uint8]:
@@ -165,6 +167,7 @@ class ButtonDetector:
             ButtonType.CLICK: single(self.assets.click_img),
             ButtonType.UNDERSTOOD: single(self.assets.understood_img),
             ButtonType.STAGING: single(self.assets.staging_img),
+            ButtonType.STANDARD_DOWNLOAD: single(self.assets.standard_download_img),
         }
         logger.info("Computed template matching data for all assets")
         return templates

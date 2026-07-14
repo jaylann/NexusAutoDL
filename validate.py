@@ -107,6 +107,7 @@ def validate_assets() -> List[str]:
     optional_assets = [
         "VortexDownloadButtonNew.png",
         "WebsiteDownloadButtonNew.png",
+        "StandardDownloadButton.png",
     ]
 
     assets_path = Path("assets")

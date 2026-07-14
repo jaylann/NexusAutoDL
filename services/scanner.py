@@ -213,9 +213,22 @@ class Scanner:
             True if a web button was clicked, None if nothing was found
             in this frame (caller decides about retries across frames)
         """
-        targets: list[tuple[ButtonType, str]] = [
-            (ButtonType.WEBSITE, "website download button")
-        ]
+        targets: list[tuple[ButtonType, str]] = []
+
+        # Nexus's beta "resumable downloads" flow interposes a modal offering
+        # "Standard download" vs "Resumable download" after a download click
+        # (files >500MB). The resumable option streams via the File System API
+        # save dialog, which Wabbajack/the browser download watcher can't
+        # intercept, so take "Standard download" to dismiss the modal and keep
+        # the normal flow. Scoped to the non-Vortex (browser/Wabbajack) path;
+        # it is a no-op until the optional StandardDownloadButton.png asset is
+        # present (no template -> detect() returns None).
+        if not self.config.vortex:
+            targets.append(
+                (ButtonType.STANDARD_DOWNLOAD, "Standard download (resumable prompt)")
+            )
+
+        targets.append((ButtonType.WEBSITE, "website download button"))
 
         if not self.config.vortex:
             targets.append((ButtonType.WABBAJACK, "Wabbajack download button"))

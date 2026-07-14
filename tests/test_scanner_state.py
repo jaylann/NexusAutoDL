@@ -130,8 +130,46 @@ def test_wabbajack_mode_clicks_and_resets_each_iteration(make_scanner) -> None:
 
     assert scanner.status.clicks_count == 2
     assert all(d.button_type == ButtonType.WABBAJACK for d in scanner.status.detections)
-    # WEBSITE is probed before WABBAJACK on every sweep.
-    assert stub.calls[0] == ButtonType.WEBSITE
+    # Probe order each sweep: resumable-download prompt, then WEBSITE, then
+    # WABBAJACK.
+    assert stub.calls[:3] == [
+        ButtonType.STANDARD_DOWNLOAD,
+        ButtonType.WEBSITE,
+        ButtonType.WABBAJACK,
+    ]
+
+
+def test_standard_download_prompt_dismissed_before_download(make_scanner) -> None:
+    scanner, stub = make_scanner(vortex=False)
+    # The resumable modal is up, covering the download button. Both would
+    # match, but taking "Standard download" must win so the modal is cleared.
+    stub.responses[ButtonType.STANDARD_DOWNLOAD] = _detection(
+        ButtonType.STANDARD_DOWNLOAD
+    )
+    stub.responses[ButtonType.WABBAJACK] = _detection(ButtonType.WABBAJACK)
+
+    scanner.scan_loop(max_iterations=1)
+
+    assert scanner.status.clicks_count == 1
+    assert scanner.status.detections[0].button_type == ButtonType.STANDARD_DOWNLOAD
+    # The prompt is probed first and short-circuits the sweep, so the download
+    # buttons behind the modal are never clicked.
+    assert stub.calls[0] == ButtonType.STANDARD_DOWNLOAD
+    assert ButtonType.WABBAJACK not in stub.calls
+
+
+def test_vortex_mode_ignores_resumable_prompt(make_scanner) -> None:
+    scanner, stub = make_scanner(vortex=True)
+    stub.responses[ButtonType.VORTEX] = _detection(ButtonType.VORTEX)
+    stub.responses[ButtonType.STANDARD_DOWNLOAD] = _detection(
+        ButtonType.STANDARD_DOWNLOAD
+    )
+
+    scanner.scan_loop(max_iterations=2)
+
+    # The resumable prompt is a browser/Wabbajack-flow concern; the Vortex
+    # path must never probe or click it.
+    assert ButtonType.STANDARD_DOWNLOAD not in stub.calls
 
 
 def test_website_checked_before_wabbajack(make_scanner) -> None:

@@ -38,6 +38,7 @@ _REQUIRED_ASSETS: dict[ButtonType, tuple[str, ...]] = {
     ButtonType.CLICK: ("ClickHereButton.png",),
     ButtonType.UNDERSTOOD: ("UnderstoodButton.png",),
     ButtonType.STAGING: ("StagingButton.png",),
+    ButtonType.STANDARD_DOWNLOAD: ("StandardDownloadButton.png",),
 }
 
 
