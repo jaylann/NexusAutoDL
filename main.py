@@ -27,7 +27,10 @@ logger = get_logger(__name__)
     "--vortex", is_flag=True, default=False, help="Enable Vortex mod manager mode"
 )
 @click.option(
-    "--legacy", is_flag=True, default=False, help="Use legacy button assets and dialogs"
+    "--legacy",
+    is_flag=True,
+    default=False,
+    help="Also handle the old Vortex 'Understood' / 'Staging' / 'click here' dialogs",
 )
 @click.option("--verbose", is_flag=True, default=False, help="Enable verbose logging")
 @click.option(

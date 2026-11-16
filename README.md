@@ -130,19 +130,21 @@ python main.py --vortex --browser chrome --force-primary
 </details>
 
 <details>
-<summary><b>Scenario 2: Legacy Nexus Mods Interface</b></summary>
+<summary><b>Scenario 2: Old Vortex Dialogs</b></summary>
 
 ```bash
 python main.py --vortex --browser firefox --legacy
 ```
 
 **What it does:**
-- Uses legacy button templates
-- Handles "Staging" and "Understood" dialog buttons
-- Works with older Nexus Mods layout
+- Also clicks the old "Staging", "Understood" and "click here" dialogs
 - Compatible with Firefox
 
-**Best for:** Users on older Nexus Mods UI or with legacy template preferences
+Old and new download buttons are both detected without this flag: the app
+tries every button design it knows, so old Vortex with today's Nexus site
+works as is.
+
+**Best for:** Users on an old Vortex that still shows those dialogs
 
 </details>
 
@@ -240,7 +242,7 @@ python main.py --vortex --browser chrome
 |--------|------|---------|-------------|
 | `--browser` | choice | None | Browser to position: `chrome` or `firefox` (requires `--vortex`) |
 | `--vortex` | flag | False | Enable Vortex Mod Manager integration (detects Vortex buttons, handles dialogs, manages windows). Without this, only Website and Wabbajack buttons are detected. |
-| `--legacy` | flag | False | Use legacy button templates for old Nexus Mods UI |
+| `--legacy` | flag | False | Also handle the old Vortex "Understood" / "Staging" / "click here" dialogs. Old and new download buttons are detected either way. |
 | `--verbose` | flag | False | Enable detailed debug logging to console |
 | `--force-primary` | flag | False | Scan primary monitor only (ignore secondary displays) |
 | `--window-title` | text | None | Move window containing this text to foreground before scanning |
@@ -274,7 +276,7 @@ python main.py --help
    ```bash
    python main.py --min-matches 5
    ```
-3. Check if you need `--legacy` flag for old Nexus Mods UI
+3. On an old Vortex that shows "Understood" / "Staging" dialogs, add `--legacy`
 4. Enable debug mode to see what's being detected:
    ```bash
    python main.py --debug-frame-dir ./debug --verbose

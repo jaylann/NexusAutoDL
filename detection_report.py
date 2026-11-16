@@ -7,7 +7,9 @@ branch, then diff the scores to settle "improved detection" claims objectively.
 
     python detection_report.py [--fail-under 0.99]
 
-``--fail-under`` exits non-zero when the score drops below the bar, so the
+``--fail-under`` exits non-zero when the score drops below the bar, overall or
+for one UI generation on its own (``meta.ui_generation``: the older Vortex and
+website designs must not hide behind the larger set of new ones), so the
 report can double as a regression gate. Cases whose button type / template /
 image is unavailable on the current branch are reported as skipped (same
 gating as the pytest suite), so the score only reflects cases this branch can
@@ -77,6 +79,7 @@ def run(fail_under: float | None = None) -> int:
 
     by_type: dict[str, Stats] = {}
     by_variant: dict[str, Stats] = {}
+    by_generation: dict[str, Stats] = {}
     skipped = 0
 
     for case in cases:
@@ -87,6 +90,7 @@ def run(fail_under: float | None = None) -> int:
 
         button_type = ButtonType(case["button_type"])
         variant = str(case.get("meta", {}).get("variant", "?"))
+        generation = str(case.get("meta", {}).get("ui_generation", "new"))
         img = read_rgb(case_image_path(case))
 
         start = time.perf_counter()
@@ -101,6 +105,7 @@ def run(fail_under: float | None = None) -> int:
         for st in (
             by_type.setdefault(button_type.value, Stats()),
             by_variant.setdefault(variant, Stats()),
+            by_generation.setdefault(generation, Stats()),
         ):
             st.latencies_ms.append(elapsed_ms)
             if case["expect"] == "absent":
@@ -120,12 +125,33 @@ def run(fail_under: float | None = None) -> int:
     print()
     print("By variant:")
     _print_table(by_variant)
+    print()
+    print("By UI generation:")
+    _print_table(by_generation)
 
     score = _print_score(by_type, skipped)
-    if fail_under is not None and score < fail_under:
+    if fail_under is None:
+        return 0
+    failed = False
+    if score < fail_under:
         print(f"FAIL: score {score:.3f} < required {fail_under:.3f}")
-        return 1
-    return 0
+        failed = True
+    for generation, stats in sorted(by_generation.items()):
+        generation_score = _score(stats.detected, stats.expected, stats.false_positives)
+        if stats.expected and generation_score < fail_under:
+            print(
+                f"FAIL: {generation} designs score {generation_score:.3f} "
+                f"< required {fail_under:.3f}"
+            )
+            failed = True
+    return 1 if failed else 0
+
+
+def _score(detected: int, expected: int, false_positives: int) -> float:
+    """Recall penalised by false positives, in [0, 1]."""
+    recall = detected / expected if expected else 0.0
+    total = expected + false_positives
+    return max(0.0, recall - (false_positives / total if total else 0.0))
 
 
 def _print_table(stats: dict[str, Stats]) -> None:
@@ -156,12 +182,8 @@ def _print_score(by_type: dict[str, Stats], skipped: int) -> float:
     overall_mean = f"{sum(all_errors) / len(all_errors):.1f}" if all_errors else "-"
     print(f"TOTAL: {overall_ratio} detected, mean error {overall_mean}px")
 
-    # Detection score: recall penalised by false positives, in [0, 1].
     recall = total_detected / total_expected if total_expected else 0.0
-    fp_penalty = (
-        total_fp / (total_expected + total_fp) if (total_expected + total_fp) else 0.0
-    )
-    score = max(0.0, recall - fp_penalty)
+    score = _score(total_detected, total_expected, total_fp)
     print()
     print(
         f"Detection score: {score:.3f}  "

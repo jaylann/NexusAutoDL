@@ -74,11 +74,7 @@ VERIFY_SEARCH_PAD = 6
 class ButtonDetector:
     """Detects buttons in screenshots using SIFT."""
 
-    def __init__(
-        self,
-        assets_path: Path = Path("assets"),
-        use_legacy_buttons: bool = False,
-    ) -> None:
+    def __init__(self, assets_path: Path = Path("assets")) -> None:
         """
         Initialize button detector.
 
@@ -86,7 +82,6 @@ class ButtonDetector:
             assets_path: Path to button image assets
         """
         self.assets_path = assets_path
-        self.use_legacy_buttons = use_legacy_buttons
         self.sift = cv2.SIFT_create()
         self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
 
@@ -148,31 +143,32 @@ class ButtonDetector:
     def _build_templates(self) -> dict[ButtonType, list[TemplateCandidate]]:
         """Precompute matching data for every template once."""
 
-        def mode_specific(
-            legacy_img: npt.NDArray[np.uint8] | None,
-            new_img: npt.NDArray[np.uint8] | None,
-        ) -> list[TemplateCandidate]:
-            img = legacy_img if self.use_legacy_buttons else new_img
-            name = "legacy" if self.use_legacy_buttons else "new"
-            candidate = self._make_candidate(img, name)
-            return [candidate] if candidate else []
-
-        def single(img: npt.NDArray[np.uint8] | None) -> list[TemplateCandidate]:
-            candidate = self._make_candidate(img, "default")
-            return [candidate] if candidate else []
-
-        templates = {
-            ButtonType.VORTEX: mode_specific(
-                self.assets.vortex_img, self.assets.vortex_new_img
+        assets = self.assets
+        # Every picture we ship of a button, per type: each UI generation and
+        # each size it was captured at. detect() tries them all and keeps the
+        # best fit, so nobody has to tell the app which Vortex or Nexus design
+        # is on screen (old Vortex with today's site is a real combination).
+        pictures: dict[ButtonType, tuple[tuple[str, object], ...]] = {
+            ButtonType.VORTEX: (
+                ("new", assets.vortex_new_img),
+                ("legacy", assets.vortex_img),
             ),
-            ButtonType.WEBSITE: mode_specific(
-                self.assets.web_img, self.assets.web_new_img
+            ButtonType.WEBSITE: (
+                ("new", assets.web_new_img),
+                # The same "Slow download" button captured at 100 % scaling;
+                # the "new" picture above is a 150 % capture.
+                ("new-100", assets.wabbajack_img),
+                ("legacy", assets.web_img),
             ),
-            ButtonType.WABBAJACK: single(self.assets.wabbajack_img),
-            ButtonType.CLICK: single(self.assets.click_img),
-            ButtonType.UNDERSTOOD: single(self.assets.understood_img),
-            ButtonType.STAGING: single(self.assets.staging_img),
+            ButtonType.WABBAJACK: (("default", assets.wabbajack_img),),
+            ButtonType.CLICK: (("default", assets.click_img),),
+            ButtonType.UNDERSTOOD: (("default", assets.understood_img),),
+            ButtonType.STAGING: (("default", assets.staging_img),),
         }
+        templates: dict[ButtonType, list[TemplateCandidate]] = {}
+        for button_type, named_images in pictures.items():
+            candidates = [self._make_candidate(img, name) for name, img in named_images]
+            templates[button_type] = [c for c in candidates if c is not None]
         logger.info("Computed template matching data for all assets")
         return templates
 
@@ -196,19 +192,12 @@ class ButtonDetector:
         )
 
     def _log_asset_mode(self) -> None:
-        """Log which button assets will be used for detection."""
-        mode = "legacy" if self.use_legacy_buttons else "new"
-        logger.info(f"Using {mode} button templates")
-
-        for label, button_type in (
-            ("Vortex", ButtonType.VORTEX),
-            ("Website", ButtonType.WEBSITE),
-        ):
-            if not self._templates[button_type]:
-                logger.warning(
-                    f"{label} {mode} template not found. "
-                    f"{'Add the legacy asset or run without --legacy' if self.use_legacy_buttons else 'Provide the new asset or rerun with --legacy'}."
-                )
+        """Log which pictures each button type is matched against."""
+        for button_type, candidates in self._templates.items():
+            names = ", ".join(c.name for c in candidates) or "none"
+            logger.debug(f"{button_type.value} templates: {names}")
+            if not candidates:
+                logger.warning(f"No template available for {button_type.value}")
 
     def _ratio_test(
         self, matches: list[list[cv2.DMatch]], ratio: float
