@@ -89,6 +89,19 @@ jobs:
           --topology "${{ matrix.topology }}"
           --append-to-cases --verify --strict
 
+      # Same sweep with the runner's desktop (wallpaper, taskbar, watermark text)
+      # left visible on the other monitors. Harder and less deterministic, so it
+      # only reports: results go to artifacts, never to cases.json.
+      - name: Noisy-desktop scenarios (report only)
+        if: ${{ !cancelled() && steps.displays.outcome == 'success' }}
+        continue-on-error: true
+        run: >-
+          python tools/generate_scenarios.py
+          --out artifacts/noisy-scenarios
+          --prefix ${{ matrix.name }}-noisy
+          --topology "${{ matrix.topology }}"
+          --noisy --verify --strict
+
       - name: Detection report (scenario cases)
         if: ${{ !cancelled() && steps.displays.outcome == 'success' }}
         run: python detection_report.py --source scenario

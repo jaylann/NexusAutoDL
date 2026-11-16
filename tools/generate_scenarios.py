@@ -34,6 +34,12 @@ per-monitor DPI aware, so Tk geometry is in physical pixels. Windows are
 therefore sized from the matched *physical* MSS rect, and every capture is
 checked to really show the window covering that rect (otherwise the computed
 label would be wrong); a failed coverage check is never written as a case.
+
+Determinism: by default every *other* monitor is covered with a plain window
+too, so a case depends only on button, scale and DPI -- not on wallpaper,
+taskbar or clock text, which otherwise attract stray keypoint matches.
+``--noisy`` leaves those monitors showing the real desktop, a harder
+report-only variant (CI writes it to artifacts, never to cases.json).
 """
 
 from __future__ import annotations
@@ -148,14 +154,26 @@ def _render_and_capture(
     bg_color: str,
     screen_capture: Any,
     settle: float,
+    idle: list[dict[str, int]] | None = None,
 ) -> Any:
     """Draw the button on a borderless window covering the physical monitor rect.
 
     ``phys`` is the MSS rect (physical pixels). The process is per-monitor DPI
     aware once ``ScreenCapture`` exists, so Tk geometry is physical as well.
+    ``idle`` monitors get a plain window in the same colour, so whatever the
+    desktop shows there (wallpaper, taskbar, clock) can't reach the detector.
     """
     import tkinter as tk
     from PIL import ImageTk
+
+    blanks = []
+    for rect in idle or []:
+        blank = tk.Toplevel(root)
+        blank.overrideredirect(True)
+        blank.attributes("-topmost", True)
+        blank.geometry(f"{rect['width']}x{rect['height']}+{rect['left']}+{rect['top']}")
+        blank.configure(bg=bg_color)
+        blanks.append(blank)
 
     width, height = phys["width"], phys["height"]
     win = tk.Toplevel(root)
@@ -185,6 +203,8 @@ def _render_and_capture(
 
     img = screen_capture.capture()
     win.destroy()
+    for blank in blanks:
+        blank.destroy()
     root.update()  # process the destroy so the next window paints cleanly
     return img
 
@@ -335,6 +355,11 @@ def main() -> int:
         default=None,
         help="topology label recorded in each case's meta (e.g. the CI matrix spec)",
     )
+    parser.add_argument(
+        "--noisy",
+        action="store_true",
+        help="leave other monitors showing the desktop instead of blanking them",
+    )
     args = parser.parse_args()
 
     if not IS_WINDOWS:
@@ -399,6 +424,15 @@ def main() -> int:
     index = 0
     coverage_failures = 0
     detect_failures = 0
+    physical_list = (
+        capture.screen_monitors[1:]
+        if len(capture.screen_monitors) > 1
+        else capture.screen_monitors
+    )
+
+    def idle_for(phys: dict[str, int]) -> list[dict[str, int]]:
+        """Monitors to blank while ``phys`` shows the scenario."""
+        return [] if args.noisy else [m for m in physical_list if m != phys]
 
     def base_meta(monitor_index: int, phys: dict[str, int]) -> dict[str, Any]:
         mon_scale = _monitor_scale(phys)
@@ -409,6 +443,7 @@ def main() -> int:
             "monitor_rect": [phys["left"], phys["top"], phys["width"], phys["height"]],
             "dpi_scale": round(mon_scale * 100) if mon_scale else None,
             "source": "scenario",
+            "background": "noisy" if args.noisy else "blank",
         }
         if args.topology:
             meta["topology"] = args.topology
@@ -424,7 +459,9 @@ def main() -> int:
         phys = _match_physical(monitor, capture.screen_monitors)
         pil = _load_pil(args.assets / _TEMPLATE_ASSET[bt], scale)
         bg = _BG_COLORS[index % len(_BG_COLORS)]
-        img = _render_and_capture(root, phys, pil, fx, fy, bg, capture, args.settle)
+        img = _render_and_capture(
+            root, phys, pil, fx, fy, bg, capture, args.settle, idle_for(phys)
+        )
 
         point = _ground_truth_point(phys, fx, fy, capture.min_x, capture.min_y)
 
@@ -490,7 +527,7 @@ def main() -> int:
         for n in range(args.negatives):
             bg = _BG_COLORS[index % len(_BG_COLORS)]
             img = _render_and_capture(
-                root, phys, None, 0.5, 0.5, bg, capture, args.settle
+                root, phys, None, 0.5, 0.5, bg, capture, args.settle, idle_for(phys)
             )
             cover = _coverage(img, phys, capture.min_x, capture.min_y, bg, None)
             if cover < _MIN_COVERAGE:
