@@ -5,16 +5,15 @@ Button detection using SIFT feature matching.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import cv2
 import numpy as np
 import numpy.typing as npt
 
 from models import (
+    BoundingBox,
     ButtonAssets,
     ButtonType,
-    BoundingBox,
     DetectionResult,
     TemplateCandidate,
 )
@@ -100,7 +99,7 @@ class ButtonDetector:
 
         def compute_desc(
             img: npt.NDArray[np.uint8],
-        ) -> Optional[npt.NDArray[np.float32]]:
+        ) -> npt.NDArray[np.float32] | None:
             gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
             _, desc = self.sift.detectAndCompute(gray, mask=None)
             return desc
@@ -139,16 +138,16 @@ class ButtonDetector:
     def _mode_specific_candidates(
         self,
         *,
-        legacy_img: Optional[npt.NDArray[np.uint8]],
-        legacy_desc: Optional[npt.NDArray[np.float32]],
-        new_img: Optional[npt.NDArray[np.uint8]],
-        new_desc: Optional[npt.NDArray[np.float32]],
+        legacy_img: npt.NDArray[np.uint8] | None,
+        legacy_desc: npt.NDArray[np.float32] | None,
+        new_img: npt.NDArray[np.uint8] | None,
+        new_desc: npt.NDArray[np.float32] | None,
     ) -> list[TemplateCandidate]:
         """Return template candidate for selected mode if available."""
-        img: Optional[npt.NDArray[np.uint8]] = (
+        img: npt.NDArray[np.uint8] | None = (
             legacy_img if self.use_legacy_buttons else new_img
         )
-        desc: Optional[npt.NDArray[np.float32]] = (
+        desc: npt.NDArray[np.float32] | None = (
             legacy_desc if self.use_legacy_buttons else new_desc
         )
         candidate = self._make_candidate(img, desc)
@@ -156,8 +155,8 @@ class ButtonDetector:
 
     def _single_candidate(
         self,
-        img: Optional[npt.NDArray[np.uint8]],
-        desc: Optional[npt.NDArray[np.float32]],
+        img: npt.NDArray[np.uint8] | None,
+        desc: npt.NDArray[np.float32] | None,
     ) -> list[TemplateCandidate]:
         """Return a single template candidate if descriptors exist."""
         candidate = self._make_candidate(img, desc)
@@ -165,9 +164,9 @@ class ButtonDetector:
 
     def _make_candidate(
         self,
-        img: Optional[npt.NDArray[np.uint8]],
-        desc: Optional[npt.NDArray[np.float32]],
-    ) -> Optional[TemplateCandidate]:
+        img: npt.NDArray[np.uint8] | None,
+        desc: npt.NDArray[np.float32] | None,
+    ) -> TemplateCandidate | None:
         if img is None or desc is None:
             return None
         height, width = img.shape[:2]
@@ -183,7 +182,7 @@ class ButtonDetector:
         ratio: float,
         offset_x: int,
         offset_y: int,
-    ) -> Optional[DetectionResult]:
+    ) -> DetectionResult | None:
         """Run descriptor matching for a single template."""
         matches: list[list[cv2.DMatch]] = self.matcher.knnMatch(template.desc, des, k=2)
         good_matches: list[cv2.DMatch] = []
@@ -229,8 +228,8 @@ class ButtonDetector:
         button_type: ButtonType,
         min_matches: int = 8,
         ratio: float = 0.75,
-        bbox: Optional[BoundingBox] = None,
-    ) -> Optional[DetectionResult]:
+        bbox: BoundingBox | None = None,
+    ) -> DetectionResult | None:
         """
         Detect button in image.
 
@@ -303,9 +302,9 @@ class ButtonDetector:
             logger.debug(f"No keypoints found for {button_type}")
             return None
 
-        best_result: Optional[DetectionResult] = None
+        best_result: DetectionResult | None = None
         for template in template_candidates:
-            result: Optional[DetectionResult] = self._match_template(
+            result: DetectionResult | None = self._match_template(
                 template,
                 kps,
                 des,

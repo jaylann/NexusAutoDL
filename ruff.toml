@@ -1,0 +1,15 @@
+# Ruff settings (lint + format). The ruff version is pinned in
+# requirements-dev.txt (CI installs from it); when bumping it, fix whatever a
+# new default rule set reports in the same change.
+
+# README promises Python 3.9+.
+target-version = "py39"
+
+[lint.per-file-ignores]
+# Pydantic evaluates model annotations at runtime, and Python 3.9 cannot
+# evaluate PEP 604 unions (`int | None`), so the models keep typing.Optional and
+# must not gain `from __future__ import annotations`.
+"models/**" = ["FA100", "UP045", "UP007"]
+# The validation script catches everything on purpose: it reports every
+# failure instead of stopping at the first.
+"validate.py" = ["BLE001"]

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 import numpy as np
 import numpy.typing as npt
@@ -39,7 +39,7 @@ class Scanner:
         self,
         config: AppConfig,
         monitors: list[Monitor],
-        status_callback: Optional[Callable[[ScanStatus], None]] = None,
+        status_callback: Callable[[ScanStatus], None] | None = None,
     ) -> None:
         """
         Initialize scanner.
@@ -90,7 +90,8 @@ class Scanner:
                     f"Positioned window: {self.config.window_title}"
                 )
                 self._update_status()
-        except Exception as e:
+        # Any setup failure is reported in the status; scanning still starts.
+        except Exception as e:  # noqa: BLE001
             error_msg = f"Window setup error: {e}"
             logger.error(error_msg)
             self.status.errors.append(error_msg)
@@ -166,7 +167,7 @@ class Scanner:
                 (ButtonType.STAGING, "Clicking 'Staging' button"),
             ]
             for button_type, action in popup_buttons:
-                detection: Optional[DetectionResult] = self.button_detector.detect(
+                detection: DetectionResult | None = self.button_detector.detect(
                     img,
                     button_type,
                     min_matches=6,
@@ -184,7 +185,7 @@ class Scanner:
                     return False
 
         # Detect Vortex download button
-        vortex_detection: Optional[DetectionResult] = self.button_detector.detect(
+        vortex_detection: DetectionResult | None = self.button_detector.detect(
             img,
             ButtonType.VORTEX,
             min_matches=self.config.min_matches,
@@ -227,7 +228,7 @@ class Scanner:
             targets.append((ButtonType.WABBAJACK, "Wabbajack download button"))
 
         for button_type, label in targets:
-            detection: Optional[DetectionResult] = self.button_detector.detect(
+            detection: DetectionResult | None = self.button_detector.detect(
                 img,
                 button_type,
                 min_matches=6,
@@ -295,7 +296,7 @@ class Scanner:
             self._update_status()
             return True
 
-        click_detection: Optional[DetectionResult] = self.button_detector.detect(
+        click_detection: DetectionResult | None = self.button_detector.detect(
             img, ButtonType.CLICK, min_matches=6, ratio=self.config.ratio_threshold
         )
 
@@ -311,7 +312,7 @@ class Scanner:
         self._update_status()
         return False
 
-    def scan_loop(self, max_iterations: Optional[int] = None) -> None:
+    def scan_loop(self, max_iterations: int | None = None) -> None:
         """
         Main scanning loop.
 
@@ -383,7 +384,8 @@ class Scanner:
             logger.info("Scan stopped by user")
         except Exception as e:
             error_msg = f"Scanner error: {e}"
-            logger.error(error_msg, exc_info=True)
+            # loguru ignores stdlib's exc_info=True; .exception logs the traceback.
+            logger.exception(error_msg)
             self.status.errors.append(error_msg)
             self.status.state = ScanState.ERROR
             self._update_status()

@@ -4,12 +4,11 @@ Screen capture and coordinate conversion utilities.
 
 from __future__ import annotations
 
-from loguru import logger
-
 import cv2
 import mss
 import numpy as np
 import numpy.typing as npt
+from loguru import logger
 
 from models import Monitor
 

@@ -5,7 +5,6 @@ Run this after installation to check the setup.
 """
 
 import sys
-from typing import List
 
 # Ensure Unicode status glyphs print on Windows consoles (cp1252 by default).
 for _stream in (sys.stdout, sys.stderr):
@@ -15,7 +14,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 
-def validate_imports() -> List[str]:
+def validate_imports() -> list[str]:
     """Validate all module imports."""
     errors = []
 
@@ -49,14 +48,14 @@ def validate_imports() -> List[str]:
     return errors
 
 
-def validate_models() -> List[str]:
+def validate_models() -> list[str]:
     """Validate Pydantic models."""
     errors = []
 
     print("\nValidating Pydantic models...")
 
     try:
-        from models import Monitor, BoundingBox, AppConfig, DetectionResult, ButtonType
+        from models import AppConfig, BoundingBox, ButtonType, DetectionResult, Monitor
 
         # Test Monitor
         mon = Monitor(x=0, y=0, width=1920, height=1080)
@@ -88,7 +87,7 @@ def validate_models() -> List[str]:
     return errors
 
 
-def validate_assets() -> List[str]:
+def validate_assets() -> list[str]:
     """Validate asset files exist."""
     errors = []
 

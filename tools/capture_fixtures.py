@@ -33,7 +33,7 @@ import numpy as np
 # Ensure repo root is importable when run as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from utils.platform import IS_WINDOWS  # noqa: E402
+from utils.platform import IS_WINDOWS
 
 
 def _save_png_unicode_safe(path: Path, rgb: np.ndarray) -> None:

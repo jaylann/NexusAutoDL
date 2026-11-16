@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class MockWin32API:
@@ -21,7 +22,7 @@ class MockWin32API:
     @staticmethod
     def SetCursorPos(pos: tuple[int, int]) -> None:
         """Set fake cursor position."""
-        logging.debug(f"[MOCK] SetCursorPos: {pos}")
+        logger.debug(f"[MOCK] SetCursorPos: {pos}")
 
     @staticmethod
     def mouse_event(event: int, x: int, y: int, data: int, extra_info: int) -> None:
@@ -31,7 +32,7 @@ class MockWin32API:
             0x0004: "MOUSEEVENTF_LEFTUP",
         }
         event_name = event_names.get(event, f"UNKNOWN({event})")
-        logging.debug(f"[MOCK] mouse_event: {event_name} at ({x}, {y})")
+        logger.debug(f"[MOCK] mouse_event: {event_name} at ({x}, {y})")
 
     @staticmethod
     def EnumDisplayMonitors(
@@ -47,11 +48,6 @@ class MockWin32API:
 
 class MockWin32GUI:
     """Mock win32gui module."""
-
-    _windows = {
-        "Vortex": (100, 100, 1820, 980),
-        "Chrome": (50, 50, 1870, 1030),
-    }
 
     @staticmethod
     def GetWindowRect(hwnd: int) -> tuple[int, int, int, int]:
@@ -83,7 +79,7 @@ class MockWin32GUI:
         hwnd: int, after, x: int, y: int, w: int, h: int, flags: bool
     ) -> None:
         """Set fake window position."""
-        logging.debug(f"[MOCK] SetWindowPos: hwnd={hwnd} pos=({x},{y}) size=({w},{h})")
+        logger.debug(f"[MOCK] SetWindowPos: hwnd={hwnd} pos=({x},{y}) size=({w},{h})")
 
 
 class MockWin32Con:
@@ -97,10 +93,10 @@ class MockUserDLL:
     """Mock user32.dll."""
 
     @staticmethod
-    def FindWindowW(class_name, window_name: Optional[str]) -> int:
+    def FindWindowW(class_name, window_name: str | None) -> int:
         """Find fake window by name."""
         if window_name:
-            logging.debug(f"[MOCK] FindWindowW: {window_name}")
+            logger.debug(f"[MOCK] FindWindowW: {window_name}")
             # Return a fake handle
             return random.randint(1000, 9999)
         return 0
@@ -108,7 +104,7 @@ class MockUserDLL:
     @staticmethod
     def ShowWindow(hwnd: int, cmd: int) -> None:
         """Show fake window."""
-        logging.debug(f"[MOCK] ShowWindow: hwnd={hwnd} cmd={cmd}")
+        logger.debug(f"[MOCK] ShowWindow: hwnd={hwnd} cmd={cmd}")
 
 
 # Create singleton instances
@@ -125,4 +121,4 @@ def get_mock_user32():
 
 
 # Export for easy importing
-__all__ = ["win32api", "win32gui", "win32con", "get_mock_user32"]
+__all__ = ["get_mock_user32", "win32api", "win32con", "win32gui"]

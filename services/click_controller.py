@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import time
 
-from utils.platform import IS_WINDOWS, win32api, win32con
 from utils.logger import get_logger
+from utils.platform import IS_WINDOWS, win32api, win32con
 
 logger = get_logger(__name__)
 

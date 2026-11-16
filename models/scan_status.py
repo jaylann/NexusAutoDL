@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from models.scan_state import ScanState
 from models.detection_result import DetectionResult
+from models.scan_state import ScanState
 
 
 class ScanStatus(BaseModel):

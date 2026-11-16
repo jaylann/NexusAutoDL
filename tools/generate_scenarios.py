@@ -40,8 +40,8 @@ from typing import Any
 # Repo root importable when run as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from models import ButtonType  # noqa: E402
-from utils.platform import IS_WINDOWS  # noqa: E402
+from models import ButtonType
+from utils.platform import IS_WINDOWS
 
 # Button type -> template asset rendered (the one matched in default/non-legacy
 # mode, so captures reflect production behaviour).
@@ -119,7 +119,7 @@ def _ground_truth_point(
     """
     cx = phys["left"] + fx * phys["width"]
     cy = phys["top"] + fy * phys["height"]
-    return int(round(cx - min_x)), int(round(cy - min_y))
+    return round(cx - min_x), round(cy - min_y)
 
 
 def _render_and_capture(
@@ -134,6 +134,7 @@ def _render_and_capture(
 ) -> Any:
     """Draw the button on a borderless full-monitor window and capture it."""
     import tkinter as tk
+
     from PIL import ImageTk
 
     win = tk.Toplevel(root)
@@ -262,9 +263,10 @@ def main() -> int:
         return 1
 
     try:
-        import tkinter as tk  # noqa: F401
+        import tkinter as tk
+
         from PIL import Image, ImageTk  # noqa: F401
-    except Exception as exc:  # pragma: no cover - Windows-only path
+    except ImportError as exc:  # pragma: no cover - Windows-only path
         print(f"Missing GUI deps (tkinter / Pillow): {exc}")
         return 1
 

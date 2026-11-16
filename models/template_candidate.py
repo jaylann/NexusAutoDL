@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 
-from numpy.typing import NDArray
 from numpy import float32
+from numpy.typing import NDArray
 
 
 @dataclass(frozen=True)
