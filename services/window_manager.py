@@ -11,7 +11,7 @@ from models import BoundingBox, BrowserType, Monitor
 from services.geometry import MonitorFrame, VirtualDesktop
 from utils.dpi import ensure_dpi_awareness
 from utils.logger import get_logger
-from utils.platform import IS_WINDOWS, user32, win32api, win32gui
+from utils.platform import IS_WINDOWS, user32, win32api, win32con, win32gui
 
 logger = get_logger(__name__)
 
@@ -35,6 +35,9 @@ class WindowManager:
     def _place_window(self, handle: int, frame: MonitorFrame) -> None:
         """Move a window onto a monitor and maximize it there."""
         user32.ShowWindow(handle, 1)  # SW_SHOWNORMAL
+        # Size it to the monitor too, not only move it: SW_MAXIMIZE picks the
+        # monitor the window overlaps most, and a window that kept a size
+        # larger than the target can overlap a neighbour as much.
         win32gui.SetWindowPos(
             handle,
             None,
@@ -42,7 +45,7 @@ class WindowManager:
             frame.top,
             frame.width,
             frame.height,
-            True,
+            win32con.SWP_NOZORDER,
         )
         user32.ShowWindow(handle, 3)  # SW_MAXIMIZE
 

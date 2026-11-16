@@ -52,7 +52,7 @@ class Scanner:
 
         # Initialize components
         self.screen_capture = ScreenCapture(monitors, config.force_primary)
-        self.button_detector = ButtonDetector(use_legacy_buttons=self.config.legacy)
+        self.button_detector = ButtonDetector()
         self.window_manager = WindowManager(self.screen_capture.desktop)
         self.click_controller = ClickController(self.screen_capture.desktop)
         debug_path = (

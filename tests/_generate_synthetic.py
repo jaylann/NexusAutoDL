@@ -5,9 +5,9 @@ Composites each button template onto deterministic backgrounds at known
 ``cases.json`` entries with exact ground-truth points. All randomness is
 seeded, so output is byte-stable and CI reproducible.
 
-The asset composited for VORTEX/WEBSITE is the *New* template -- the one the
-detector actually matches against in default (non-legacy) mode -- so synthetic
-matches reflect production behaviour rather than the legacy fallback.
+The main families composite the *New* VORTEX/WEBSITE templates. The detector
+matches every picture it ships of a button, so the ``legacy_*`` families put
+the older designs through the same treatment (``meta.ui_generation``).
 
 Case families (``meta.variant``):
 
@@ -19,9 +19,22 @@ Case families (``meta.variant``):
 * clutter:        target plus two non-target templates in one frame
 * multi_instance: the same button twice (nearest ground-truth point wins)
 * mega:           all templates in one large frame
+* legacy_clean/legacy_degraded/legacy_busy: the older Vortex and website
+                  designs through the scale sweep, degradations, busy scenes
+* mixed_generation: an old and a new design in one frame (old Vortex with
+                  today's site is what a user on Vortex 1.x sees)
+* slow_download_100: the 100 % capture of "Slow download" found as WEBSITE
 * absent guards:  empty frames, busy frames with no buttons at all,
                   cross-template negatives, lookalike buttons whose TEXT
                   differs (same visual style -- must NOT match)
+* label_prefix:   text that only starts like a label ("Download m..." for
+                  "Download manually"), as in Vortex's "Download mod" title
+* sibling_only:   a button whose label only shares the last word(s) with the
+                  target ("... download"), alone on screen -- must NOT match
+* beside_sibling: the target next to such a sibling, at 100/125/150 %
+                  (the Slow/Fast download pair on a mod page)
+* twin:           the same button twice at 125/150 %
+* flat:           uniform frames and a half-painted window
 
 Run from the repo root:
 
@@ -50,6 +63,13 @@ _TEMPLATE_ASSET: dict[ButtonType, str] = {
     ButtonType.CLICK: "ClickHereButton.png",
     ButtonType.UNDERSTOOD: "UnderstoodButton.png",
     ButtonType.STAGING: "StagingButton.png",
+}
+
+# Older designs of the same buttons. The detector tries them alongside the new
+# ones, so they get their own families (``meta.ui_generation == "legacy"``).
+_LEGACY_ASSET: dict[ButtonType, str] = {
+    ButtonType.VORTEX: "VortexDownloadButton.png",
+    ButtonType.WEBSITE: "WebsiteDownloadButton.png",
 }
 
 # Types whose templates depict the SAME visual button: WabbajackDownloadButton
@@ -288,6 +308,7 @@ def _present_case(
     variant: str,
     points: list[tuple[int, int]] | None = None,
     resolution: str = f"{_CANVAS[0]}x{_CANVAS[1]}",
+    generation: str | None = None,
 ) -> dict[str, Any]:
     case: dict[str, Any] = {
         "image": image_rel,
@@ -304,6 +325,8 @@ def _present_case(
     }
     if points is not None:
         case["points"] = [[p[0], p[1]] for p in points]
+    if generation is not None:
+        case["meta"]["ui_generation"] = generation
     return case
 
 
@@ -531,18 +554,23 @@ def _family_mega(
             canvas, buttons[button_type], frac, 1.0
         )
     rel = _write_case_image("mega_all_buttons", canvas)
-    return [
-        _present_case(
-            rel,
-            bt,
-            centers[bt],
-            1.0,
-            _TOL_DEGRADED,
-            "mega",
-            resolution=f"{size[0]}x{size[1]}",
+    cases: list[dict[str, Any]] = []
+    for bt, center in centers.items():
+        # Types that depict the same button may be found at either instance.
+        same = [c for other, c in centers.items() if _equivalent(other, bt)]
+        cases.append(
+            _present_case(
+                rel,
+                bt,
+                center,
+                1.0,
+                _TOL_DEGRADED,
+                "mega",
+                points=same if len(same) > 1 else None,
+                resolution=f"{size[0]}x{size[1]}",
+            )
         )
-        for bt in centers
-    ]
+    return cases
 
 
 def _family_empty(types: list[ButtonType]) -> list[dict[str, Any]]:
@@ -551,6 +579,295 @@ def _family_empty(types: list[ButtonType]) -> list[dict[str, Any]]:
     for idx, button_type in enumerate(types[:2]):
         rel = _write_case_image(f"empty_{idx}", _background(700 + idx))
         cases.append(_absent_case(rel, button_type, "empty"))
+    return cases
+
+
+def _family_legacy(types: list[ButtonType]) -> list[dict[str, Any]]:
+    """The older Vortex and website designs, alone and next to the new ones."""
+    cases: list[dict[str, Any]] = []
+    legacy = {
+        bt: read_rgb(ASSETS_PATH / asset)
+        for bt, asset in _LEGACY_ASSET.items()
+        if bt in types and (ASSETS_PATH / asset).exists()
+    }
+    new = {bt: read_rgb(ASSETS_PATH / _TEMPLATE_ASSET[bt]) for bt in legacy}
+    variant = 800
+
+    for idx, (button_type, button) in enumerate(legacy.items()):
+        name = f"legacy_{button_type.value}"
+
+        for s_idx, scale in enumerate(_SCALES):
+            canvas = _background(variant)
+            variant += 1
+            frac = _POSITION_POOL[(idx + s_idx + 3) % len(_POSITION_POOL)]
+            center = _paste_at_fraction(canvas, button, frac, scale)
+            rel = _write_case_image(f"{name}_{int(scale * 100):03d}", canvas)
+            cases.append(
+                _present_case(
+                    rel,
+                    button_type,
+                    center,
+                    scale,
+                    _TOL_CLEAN,
+                    "legacy_clean",
+                    generation="legacy",
+                )
+            )
+            if scale == 1.0:
+                # Only the old design is on screen: nothing else may fire.
+                for other in types:
+                    if not _equivalent(other, button_type):
+                        cases.append(_absent_case(rel, other, "legacy_cross"))
+
+        for degradation, degrade in _DEGRADATIONS:
+            canvas = _background(variant)
+            variant += 1
+            center = _paste(canvas, button, _PASTE_XY, 1.0)
+            rel = _write_case_image(f"{name}_{degradation}", degrade(canvas))
+            cases.append(
+                _present_case(
+                    rel,
+                    button_type,
+                    center,
+                    1.0,
+                    _TOL_DEGRADED,
+                    "legacy_degraded",
+                    generation="legacy",
+                )
+            )
+
+        for seed, scale in ((40 + idx, 1.0), (70 + idx, 0.75)):
+            canvas = _bg_ui_panel(seed).copy()
+            center = _paste(canvas, button, _PASTE_XY, scale)
+            rel = _write_case_image(f"{name}_busy_{int(scale * 100):03d}", canvas)
+            cases.append(
+                _present_case(
+                    rel,
+                    button_type,
+                    center,
+                    scale,
+                    _TOL_DEGRADED,
+                    "legacy_busy",
+                    generation="legacy",
+                )
+            )
+
+    # One old and one new design in the same frame, both ways round.
+    if len(legacy) == len(_LEGACY_ASSET):
+        for tag, vortex, website in (
+            ("old_vortex_new_site", legacy, new),
+            ("new_vortex_old_site", new, legacy),
+        ):
+            canvas = _background(variant)
+            variant += 1
+            placed = {
+                ButtonType.VORTEX: _paste_at_fraction(
+                    canvas, vortex[ButtonType.VORTEX], (0.08, 0.15), 1.0
+                ),
+                ButtonType.WEBSITE: _paste_at_fraction(
+                    canvas, website[ButtonType.WEBSITE], (0.85, 0.80), 1.0
+                ),
+            }
+            rel = _write_case_image(f"mixed_{tag}", canvas)
+            for button_type, center in placed.items():
+                generation = (
+                    "legacy"
+                    if (vortex if button_type is ButtonType.VORTEX else website)
+                    is legacy
+                    else "new"
+                )
+                cases.append(
+                    _present_case(
+                        rel,
+                        button_type,
+                        center,
+                        1.0,
+                        _TOL_DEGRADED,
+                        "mixed_generation",
+                        generation=generation,
+                    )
+                )
+    return cases
+
+
+def _family_slow_download_100(
+    types: list[ButtonType], buttons: dict[ButtonType, np.ndarray]
+) -> list[dict[str, Any]]:
+    """The 100 % capture of "Slow download" must be found as WEBSITE too.
+
+    In Vortex mode only WEBSITE is searched, and the WEBSITE picture proper is
+    a 150 % capture.
+    """
+    if ButtonType.WABBAJACK not in types or ButtonType.WEBSITE not in types:
+        return []
+    cases: list[dict[str, Any]] = []
+    for i, scale in enumerate((0.85, 1.0, 1.25)):
+        canvas = _background(900 + i)
+        frac = _POSITION_POOL[(i + 5) % len(_POSITION_POOL)]
+        center = _paste_at_fraction(canvas, buttons[ButtonType.WABBAJACK], frac, scale)
+        rel = _write_case_image(f"slow_download_100_{int(scale * 100):03d}", canvas)
+        cases.append(
+            _present_case(
+                rel, ButtonType.WEBSITE, center, scale, _TOL_CLEAN, "slow_download_100"
+            )
+        )
+    return cases
+
+
+def label_prefix_scene(fraction: float, scale: float) -> np.ndarray:
+    """The Vortex label cut off after ``fraction`` of its width.
+
+    Stands for other text that starts like the label: Vortex titles the dialog
+    holding the "Download manually" button "Download mod".
+    """
+    button = read_rgb(ASSETS_PATH / _TEMPLATE_ASSET[ButtonType.VORTEX])
+    text_left, text_right = 110, 312  # label extent inside the template
+    cut = text_left + round(fraction * (text_right - text_left))
+    prefix = button[14:59, text_left - 8 : cut]
+    fill = button[36, 40].tolist()
+
+    height, width = prefix.shape[:2]
+    prefix = cv2.resize(
+        prefix,
+        (round(width * scale), round(height * scale)),
+        interpolation=cv2.INTER_AREA,
+    )
+    canvas = _background(0)
+    canvas[100:260, 300:1000] = fill  # a plain title bar in the button's fill
+    y, x = 150, 380
+    canvas[y : y + prefix.shape[0], x : x + prefix.shape[1]] = prefix
+    return canvas
+
+
+def _family_label_prefix(types: list[ButtonType]) -> list[dict[str, Any]]:
+    """Half a label is not the button."""
+    if ButtonType.VORTEX not in types:
+        return []
+    cases: list[dict[str, Any]] = []
+    for fraction in (0.45, 0.55):
+        for scale in (0.85, 1.0, 1.25):
+            tag = f"{int(fraction * 100)}_{int(scale * 100):03d}"
+            rel = _write_case_image(
+                f"label_prefix_{tag}", label_prefix_scene(fraction, scale)
+            )
+            cases.append(_absent_case(rel, ButtonType.VORTEX, "label_prefix"))
+    return cases
+
+
+def drop_first_word(button: np.ndarray) -> np.ndarray:
+    """The button with the first word of its label painted over.
+
+    What is left is a sibling in the target's exact typography that shares
+    the rest of the label: "download" for "Slow download".
+    """
+    gray = cv2.cvtColor(button, cv2.COLOR_RGB2GRAY).astype(np.int16)
+    height, width = gray.shape
+    band = gray[height // 4 : 3 * height // 4].ravel().astype(np.int64)
+    fill = int(np.bincount(band, minlength=256).argmax())
+    text = np.abs(gray - fill) > 40
+    # Ignore the button's own border and whatever surrounds it.
+    text[: height // 5] = False
+    text[-(height // 5) :] = False
+    text[:, : width // 10] = False
+    text[:, -(width // 10) :] = False
+
+    columns = np.flatnonzero(text.any(axis=0))
+    rows = np.flatnonzero(text.any(axis=1))
+    word_gaps = np.flatnonzero(np.diff(columns) >= max(4, height // 12))
+    first_word_end = int(columns[word_gaps[0]]) + 1
+
+    sibling = button.copy()
+    sibling[rows.min() - 2 : rows.max() + 3, columns.min() - 2 : first_word_end + 1] = (
+        button[height // 2, width // 12]
+    )
+    return sibling
+
+
+_SIBLING_SCALES = (1.0, 1.25, 1.5)
+
+
+def _family_siblings(
+    types: list[ButtonType], buttons: dict[ButtonType, np.ndarray]
+) -> list[dict[str, Any]]:
+    """Buttons that share a word with the target, alone and beside it."""
+    # Template -> the types that must (not) find it. The 100 % "Slow download"
+    # capture is searched as WEBSITE too; its 150 % twin is out of the
+    # WABBAJACK type's scale range when enlarged further.
+    subjects = [
+        (ButtonType.VORTEX, (ButtonType.VORTEX,)),
+        (ButtonType.WEBSITE, (ButtonType.WEBSITE,)),
+        (ButtonType.WABBAJACK, (ButtonType.WEBSITE, ButtonType.WABBAJACK)),
+    ]
+    cases: list[dict[str, Any]] = []
+    variant = 1000
+    for source, searched in subjects:
+        if source not in types:
+            continue
+        button = buttons[source]
+        sibling = drop_first_word(button)
+        for scale in _SIBLING_SCALES:
+            tag = f"{source.value}_{int(scale * 100):03d}"
+
+            canvas = _background(variant)
+            variant += 1
+            _paste(canvas, sibling, _PASTE_XY, scale)
+            rel = _write_case_image(f"sibling_only_{tag}", canvas)
+            cases += [
+                _absent_case(rel, bt, "sibling_only") for bt in searched if bt in types
+            ]
+
+            canvas = _background(variant)
+            variant += 1
+            center = _paste(canvas, button, (380, 200), scale)
+            below = 200 + round(button.shape[0] * scale) + 40
+            _paste(canvas, sibling, (380, below), scale)
+            rel = _write_case_image(f"beside_sibling_{tag}", canvas)
+            cases += [
+                _present_case(rel, bt, center, scale, _TOL_DEGRADED, "beside_sibling")
+                for bt in searched
+                if bt in types
+            ]
+
+            if scale > 1.0:
+                canvas = _background(variant)
+                variant += 1
+                c1 = _paste(canvas, button, (100, 100), scale)
+                c2 = _paste(canvas, button, (450, 520), scale)
+                rel = _write_case_image(f"twin_{tag}", canvas)
+                cases += [
+                    _present_case(
+                        rel, bt, c1, scale, _TOL_DEGRADED, "twin", points=[c1, c2]
+                    )
+                    for bt in searched
+                    if bt in types
+                ]
+    return cases
+
+
+def half_painted_window() -> np.ndarray:
+    """A window caught mid-repaint: one painted rectangle, the rest black.
+
+    What the app captured right after maximising the Vortex window on the
+    display rig, where the old detector clicked the painted area's corner.
+    """
+    img = np.zeros((_CANVAS[1], _CANVAS[0], 3), dtype=np.uint8)
+    img[23:520, 0:850] = (43, 45, 66)
+    img[0:23, :] = (240, 240, 240)  # title bar
+    return img
+
+
+def _family_flat(types: list[ButtonType]) -> list[dict[str, Any]]:
+    """Screens with no texture: blank, not yet painted, or half painted."""
+    cases: list[dict[str, Any]] = []
+    frames = [
+        (f"flat_{level:03d}", np.full((_CANVAS[1], _CANVAS[0], 3), level, np.uint8))
+        for level in (0, 43, 255)
+    ]
+    frames.append(("flat_half_painted", half_painted_window()))
+    for name, image in frames:
+        rel = _write_case_image(name, image)
+        for button_type in types:
+            cases.append(_absent_case(rel, button_type, "flat"))
     return cases
 
 
@@ -567,6 +884,11 @@ def generate() -> list[dict[str, Any]]:
     cases += _family_multi_instance(types, buttons)
     cases += _family_mega(types, buttons)
     cases += _family_empty(types)
+    cases += _family_legacy(types)
+    cases += _family_slow_download_100(types, buttons)
+    cases += _family_label_prefix(types)
+    cases += _family_flat(types)
+    cases += _family_siblings(types, buttons)
     return cases
 
 

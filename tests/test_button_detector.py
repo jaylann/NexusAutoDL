@@ -13,7 +13,12 @@ from services.button_detector import (
     SCALE_RANGE,
     ButtonDetector,
 )
-from tests._generate_synthetic import _background, _paste
+from tests._generate_synthetic import (
+    _background,
+    _paste,
+    half_painted_window,
+    label_prefix_scene,
+)
 from tests.harness import ASSETS_PATH, read_rgb
 
 
@@ -108,9 +113,12 @@ class TestDetect:
         assert result.scale == pytest.approx(1.0, abs=0.05)
 
     def test_fallback_path_reports_template_method(
-        self, detector: ButtonDetector
+        self, detector: ButtonDetector, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # 0.65x starves SIFT on the thin-text wabbajack template.
+        # Template matching takes over when the feature path finds nothing.
+        # Which scenes starve SIFT shifts with its tuning, so it is switched
+        # off here rather than relied on to fail.
+        monkeypatch.setattr(detector, "_match_sift", lambda *args, **kwargs: None)
         img, center = self._scene(ButtonType.WABBAJACK, scale=0.65)
         result = detector.detect(img, ButtonType.WABBAJACK)
         assert result is not None
@@ -132,14 +140,26 @@ class TestDetect:
         results = detector.detect_multiple(img, [ButtonType.CLICK, ButtonType.VORTEX])
         assert [r.button_type for r in results] == [ButtonType.CLICK]
 
-    def test_legacy_mode_uses_legacy_template(self) -> None:
-        legacy_detector = ButtonDetector(ASSETS_PATH, use_legacy_buttons=True)
-        button = read_rgb(ASSETS_PATH / "VortexDownloadButton.png")
+    @pytest.mark.parametrize(
+        ("button_type", "asset"),
+        [
+            (ButtonType.VORTEX, "VortexDownloadButton.png"),  # old Vortex
+            (ButtonType.VORTEX, "VortexDownloadButtonNew.png"),
+            (ButtonType.WEBSITE, "WebsiteDownloadButton.png"),  # old site
+            (ButtonType.WEBSITE, "WebsiteDownloadButtonNew.png"),
+            (ButtonType.WEBSITE, "WabbajackDownloadButton.png"),  # 100 % capture
+        ],
+    )
+    def test_every_picture_of_a_button_is_found_without_a_mode_switch(
+        self, detector: ButtonDetector, button_type: ButtonType, asset: str
+    ) -> None:
+        # One detector, no --legacy: the user cannot be expected to know which
+        # Vortex or Nexus design they have, and may have one old and one new.
         canvas = _background(1)
-        center = _paste(canvas, button, (480, 300), 1.0)
-        result = legacy_detector.detect(canvas, ButtonType.VORTEX)
+        center = _paste(canvas, read_rgb(ASSETS_PATH / asset), (480, 300), 1.0)
+        result = detector.detect(canvas, button_type)
         assert result is not None
-        assert abs(result.x - center[0]) <= 5
+        assert abs(result.x - center[0]) <= 3 and abs(result.y - center[1]) <= 3
 
     def test_featureless_image_yields_nothing(self, detector: ButtonDetector) -> None:
         img = _background(2)
@@ -150,38 +170,12 @@ class TestDetect:
 class TestRejectsNonButtons:
     """Scenes that showed up as stray clicks on real screens or on the rig."""
 
-    def _label_prefix_scene(self, fraction: float, scale: float) -> np.ndarray:
-        """The Vortex label cut off after ``fraction`` of its width.
-
-        Stands for other text that starts like the label: Vortex titles the
-        dialog holding the "Download manually" button "Download mod".
-        """
-        import cv2
-
-        button = read_rgb(ASSETS_PATH / "VortexDownloadButtonNew.png")
-        text_left, text_right = 110, 312  # label extent inside the template
-        cut = text_left + round(fraction * (text_right - text_left))
-        prefix = button[14:59, text_left - 8 : cut]
-        fill = button[36, 40].tolist()
-
-        height, width = prefix.shape[:2]
-        prefix = cv2.resize(
-            prefix,
-            (round(width * scale), round(height * scale)),
-            interpolation=cv2.INTER_AREA,
-        )
-        canvas = _background(0)
-        canvas[100:260, 300:1000] = fill  # a plain title bar in the button's fill
-        y, x = 150, 380
-        canvas[y : y + prefix.shape[0], x : x + prefix.shape[1]] = prefix
-        return canvas
-
     @pytest.mark.parametrize("scale", [0.85, 1.0, 1.25])
     @pytest.mark.parametrize("fraction", [0.45, 0.55])
     def test_text_that_only_starts_like_the_label(
         self, detector: ButtonDetector, fraction: float, scale: float
     ) -> None:
-        img = self._label_prefix_scene(fraction, scale)
+        img = label_prefix_scene(fraction, scale)
         assert detector.detect(img, ButtonType.VORTEX) is None
 
     @pytest.mark.parametrize("level", [0, 30, 43, 128, 255])
@@ -192,10 +186,83 @@ class TestRejectsNonButtons:
             assert detector.detect(img, bt) is None
 
     def test_half_painted_window(self, detector: ButtonDetector) -> None:
-        # What the app captured right after maximising the Vortex window on
-        # the rig: one painted rectangle in an otherwise black client area.
-        img = np.zeros((1080, 1920, 3), dtype=np.uint8)
-        img[23:823, 0:1280] = (43, 45, 66)
-        img[0:23, :] = (240, 240, 240)  # title bar
+        img = half_painted_window()
         for bt in ButtonType:
             assert detector.detect(img, bt) is None
+
+
+class TestButtonsCutByAnEdge:
+    """A button partly beyond the frame or the search box is still a button.
+
+    Frames are per monitor and the Vortex search box is an inset of its
+    window, so a button near either edge is seen cut off.
+    """
+
+    @pytest.mark.parametrize("cut", [0.05, 0.10, 0.25])
+    @pytest.mark.parametrize(
+        "button_type",
+        [ButtonType.VORTEX, ButtonType.WEBSITE, ButtonType.WABBAJACK, ButtonType.CLICK],
+    )
+    def test_button_running_past_the_right_frame_edge(
+        self, detector: ButtonDetector, button_type: ButtonType, cut: float
+    ) -> None:
+        from tests._generate_synthetic import _TEMPLATE_ASSET
+
+        button = read_rgb(ASSETS_PATH / _TEMPLATE_ASSET[button_type])
+        canvas = _background(0)
+        center = _paste(canvas, button, (480, 300), 1.0)
+        # Crop the frame so `cut` of the button's width lies beyond its edge.
+        right_edge = center[0] + round(button.shape[1] * (0.5 - cut))
+        frame = np.ascontiguousarray(canvas[:, :right_edge])
+
+        result = detector.detect(frame, button_type)
+
+        assert result is not None
+        assert abs(result.x - center[0]) <= 4 and abs(result.y - center[1]) <= 4
+
+    def test_button_sliced_by_the_search_box(self, detector: ButtonDetector) -> None:
+        img, center = TestDetect()._scene(ButtonType.VORTEX)
+        button_width = 421
+        left = center[0] - button_width // 2 + round(0.08 * button_width)
+        bbox = BoundingBox(x1=left, y1=200, x2=1200, y2=420)
+
+        result = detector.detect(img, ButtonType.VORTEX, bbox=bbox)
+
+        assert result is not None
+        assert abs(result.x - center[0]) <= 4 and abs(result.y - center[1]) <= 4
+
+    def test_sliver_of_a_button_is_not_enough(self, detector: ButtonDetector) -> None:
+        # Less than half of it visible: too little to be sure, and the click
+        # point would lie outside the frame.
+        img, center = TestDetect()._scene(ButtonType.VORTEX)
+        frame = np.ascontiguousarray(img[:, : center[0] - 60])
+        assert detector.detect(frame, ButtonType.VORTEX) is None
+
+
+class TestCandidateMatches:
+    """Lowe's ratio test, relaxed for a label that is on screen twice."""
+
+    @staticmethod
+    def _group(*distances: float) -> list:
+        import cv2
+
+        return [cv2.DMatch(0, i, d) for i, d in enumerate(distances)]
+
+    def test_unique_match_is_kept(self, detector: ButtonDetector) -> None:
+        kept = detector._candidate_matches([self._group(10, 40, 50)], 0.75)
+        assert [m.trainIdx for m in kept] == [0]
+
+    def test_two_equal_matches_are_both_kept_when_they_beat_the_third(
+        self, detector: ButtonDetector
+    ) -> None:
+        # The same word twice: plain Lowe drops the keypoint (10 vs 11).
+        kept = detector._candidate_matches([self._group(10, 11, 50)], 0.75)
+        assert [m.trainIdx for m in kept] == [0, 1]
+
+    def test_three_similar_matches_are_noise(self, detector: ButtonDetector) -> None:
+        assert detector._candidate_matches([self._group(10, 11, 12)], 0.75) == []
+
+    def test_ambiguous_pair_without_a_third_is_dropped(
+        self, detector: ButtonDetector
+    ) -> None:
+        assert detector._candidate_matches([self._group(10, 11)], 0.75) == []

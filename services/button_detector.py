@@ -69,16 +69,30 @@ TM_GRAD_THRESHOLD = 0.80
 # sub-pixel misalignment of the projected region.
 VERIFY_NCC_THRESHOLD = 0.60
 VERIFY_SEARCH_PAD = 6
+# Share of the button that must be on screen to verify it. Frames are per
+# monitor and the Vortex search box is an inset of its window, so a button near
+# an edge is seen cut off; below half there is too little to be sure of, and
+# the click point (the button's centre) would lie off the frame.
+VERIFY_MIN_VISIBLE = 0.5
+
+# Both ends of the label must look right on their own. A neighbour that shares
+# one word with the label ("Fast download" beside "Slow download") matches
+# where the words overlap and scores well over the whole button; only the
+# other end gives it away. Each end is this share of the label's width, with a
+# few template pixels of margin so the first and last glyph are whole.
+END_PATCH_FRACTION = 0.3
+END_PATCH_MARGIN = 4
+END_NCC_THRESHOLD = 0.5
+
+# Geometric fits to try per template. The best-supported one can be such a
+# neighbour; its matches are set aside and the rest is fitted again.
+MAX_FIT_ROUNDS = 3
 
 
 class ButtonDetector:
     """Detects buttons in screenshots using SIFT."""
 
-    def __init__(
-        self,
-        assets_path: Path = Path("assets"),
-        use_legacy_buttons: bool = False,
-    ) -> None:
+    def __init__(self, assets_path: Path = Path("assets")) -> None:
         """
         Initialize button detector.
 
@@ -86,7 +100,6 @@ class ButtonDetector:
             assets_path: Path to button image assets
         """
         self.assets_path = assets_path
-        self.use_legacy_buttons = use_legacy_buttons
         self.sift = cv2.SIFT_create()
         self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
 
@@ -148,31 +161,32 @@ class ButtonDetector:
     def _build_templates(self) -> dict[ButtonType, list[TemplateCandidate]]:
         """Precompute matching data for every template once."""
 
-        def mode_specific(
-            legacy_img: npt.NDArray[np.uint8] | None,
-            new_img: npt.NDArray[np.uint8] | None,
-        ) -> list[TemplateCandidate]:
-            img = legacy_img if self.use_legacy_buttons else new_img
-            name = "legacy" if self.use_legacy_buttons else "new"
-            candidate = self._make_candidate(img, name)
-            return [candidate] if candidate else []
-
-        def single(img: npt.NDArray[np.uint8] | None) -> list[TemplateCandidate]:
-            candidate = self._make_candidate(img, "default")
-            return [candidate] if candidate else []
-
-        templates = {
-            ButtonType.VORTEX: mode_specific(
-                self.assets.vortex_img, self.assets.vortex_new_img
+        assets = self.assets
+        # Every picture we ship of a button, per type: each UI generation and
+        # each size it was captured at. detect() tries them all and keeps the
+        # best fit, so nobody has to tell the app which Vortex or Nexus design
+        # is on screen (old Vortex with today's site is a real combination).
+        pictures: dict[ButtonType, tuple[tuple[str, object], ...]] = {
+            ButtonType.VORTEX: (
+                ("new", assets.vortex_new_img),
+                ("legacy", assets.vortex_img),
             ),
-            ButtonType.WEBSITE: mode_specific(
-                self.assets.web_img, self.assets.web_new_img
+            ButtonType.WEBSITE: (
+                ("new", assets.web_new_img),
+                # The same "Slow download" button captured at 100 % scaling;
+                # the "new" picture above is a 150 % capture.
+                ("new-100", assets.wabbajack_img),
+                ("legacy", assets.web_img),
             ),
-            ButtonType.WABBAJACK: single(self.assets.wabbajack_img),
-            ButtonType.CLICK: single(self.assets.click_img),
-            ButtonType.UNDERSTOOD: single(self.assets.understood_img),
-            ButtonType.STAGING: single(self.assets.staging_img),
+            ButtonType.WABBAJACK: (("default", assets.wabbajack_img),),
+            ButtonType.CLICK: (("default", assets.click_img),),
+            ButtonType.UNDERSTOOD: (("default", assets.understood_img),),
+            ButtonType.STAGING: (("default", assets.staging_img),),
         }
+        templates: dict[ButtonType, list[TemplateCandidate]] = {}
+        for button_type, named_images in pictures.items():
+            candidates = [self._make_candidate(img, name) for name, img in named_images]
+            templates[button_type] = [c for c in candidates if c is not None]
         logger.info("Computed template matching data for all assets")
         return templates
 
@@ -196,19 +210,12 @@ class ButtonDetector:
         )
 
     def _log_asset_mode(self) -> None:
-        """Log which button assets will be used for detection."""
-        mode = "legacy" if self.use_legacy_buttons else "new"
-        logger.info(f"Using {mode} button templates")
-
-        for label, button_type in (
-            ("Vortex", ButtonType.VORTEX),
-            ("Website", ButtonType.WEBSITE),
-        ):
-            if not self._templates[button_type]:
-                logger.warning(
-                    f"{label} {mode} template not found. "
-                    f"{'Add the legacy asset or run without --legacy' if self.use_legacy_buttons else 'Provide the new asset or rerun with --legacy'}."
-                )
+        """Log which pictures each button type is matched against."""
+        for button_type, candidates in self._templates.items():
+            names = ", ".join(c.name for c in candidates) or "none"
+            logger.debug(f"{button_type.value} templates: {names}")
+            if not candidates:
+                logger.warning(f"No template available for {button_type.value}")
 
     def _ratio_test(
         self, matches: list[list[cv2.DMatch]], ratio: float
@@ -283,24 +290,110 @@ class ButtonDetector:
         cy: float,
         scale: float,
     ) -> float:
-        """NCC between the predicted scene region and the scaled template."""
+        """NCC between the predicted scene region and the scaled template.
+
+        Only the part of the button that lies inside ``scene_gray`` is
+        compared, so a button cut by the frame edge still verifies; -1.0 when
+        less than ``VERIFY_MIN_VISIBLE`` of it is there.
+        """
         sw = max(8, round(template.width * scale))
         sh = max(8, round(template.height * scale))
         interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
         resized = cv2.resize(template.gray, (sw, sh), interpolation=interpolation)
 
         scene_h, scene_w = scene_gray.shape[:2]
-        x1 = max(0, int(cx - sw / 2) - VERIFY_SEARCH_PAD)
-        y1 = max(0, int(cy - sh / 2) - VERIFY_SEARCH_PAD)
-        x2 = min(scene_w, int(cx + sw / 2) + VERIFY_SEARCH_PAD)
-        y2 = min(scene_h, int(cy + sh / 2) + VERIFY_SEARCH_PAD)
-        if x2 - x1 < sw or y2 - y1 < sh:
+        left, top = round(cx - sw / 2), round(cy - sh / 2)
+        vis_x1, vis_y1 = max(0, left), max(0, top)
+        vis_x2, vis_y2 = min(scene_w, left + sw), min(scene_h, top + sh)
+        if vis_x2 <= vis_x1 or vis_y2 <= vis_y1:
+            return -1.0
+        visible = (vis_x2 - vis_x1) * (vis_y2 - vis_y1) / (sw * sh)
+        if visible < VERIFY_MIN_VISIBLE:
             return -1.0
 
-        result = cv2.matchTemplate(
-            scene_gray[y1:y2, x1:x2], resized, cv2.TM_CCOEFF_NORMED
-        )
-        return float(result.max())
+        part = resized[vis_y1 - top : vis_y2 - top, vis_x1 - left : vis_x2 - left]
+        x1 = max(0, vis_x1 - VERIFY_SEARCH_PAD)
+        y1 = max(0, vis_y1 - VERIFY_SEARCH_PAD)
+        x2 = min(scene_w, vis_x2 + VERIFY_SEARCH_PAD)
+        y2 = min(scene_h, vis_y2 + VERIFY_SEARCH_PAD)
+        result = cv2.matchTemplate(scene_gray[y1:y2, x1:x2], part, cv2.TM_CCOEFF_NORMED)
+        return float(np.nan_to_num(result, nan=-1.0, posinf=-1.0, neginf=-1.0).max())
+
+    def _candidate_matches(
+        self, matches: list[list[cv2.DMatch]], ratio: float
+    ) -> list[cv2.DMatch]:
+        """Ratio-tested matches that tolerate the label being on screen twice.
+
+        Lowe's test drops a keypoint whose two best matches are equally good,
+        which is every keypoint of a word that appears twice: "download" in
+        "Slow download" next to "Fast download", or one button in two windows.
+        Such a keypoint keeps both matches when both clearly beat the third;
+        the geometric fit then decides which instance each belongs to.
+        """
+        good: list[cv2.DMatch] = []
+        for group in matches:
+            if len(group) < 2:
+                continue
+            first, second = group[0], group[1]
+            if first.distance < ratio * second.distance:
+                good.append(first)
+            elif len(group) > 2 and second.distance < ratio * group[2].distance:
+                good.extend((first, second))
+        return good
+
+    def _label_ends_score(
+        self,
+        template: TemplateCandidate,
+        scene_gray: npt.NDArray[np.uint8],
+        left: float,
+        top: float,
+        scale: float,
+    ) -> float:
+        """Lower NCC of the label's two ends at a predicted button position.
+
+        ``left``/``top`` is where the template's top-left corner lands in
+        ``scene_gray``. An end that lies outside the image cannot be judged
+        and is skipped; -1.0 when neither end can be.
+        """
+        xs = [kp.pt[0] for kp in template.kps]
+        if not xs:
+            return 1.0
+        label_left, label_right = min(xs), max(xs)
+        end_width = END_PATCH_FRACTION * (label_right - label_left)
+        if end_width < 2:
+            return 1.0
+
+        sw = max(8, round(template.width * scale))
+        sh = max(8, round(template.height * scale))
+        interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
+        resized = cv2.resize(template.gray, (sw, sh), interpolation=interpolation)
+        scene_h, scene_w = scene_gray.shape[:2]
+        x0, y0 = round(left), round(top)
+
+        scores: list[float] = []
+        for start, stop in (
+            (label_left - END_PATCH_MARGIN, label_left + end_width),
+            (label_right - end_width, label_right + END_PATCH_MARGIN),
+        ):
+            px1 = max(0, round(start * scale))
+            px2 = min(sw, round(stop * scale))
+            if px2 - px1 < 4:
+                continue
+            # The patch must be fully on screen, pad included on no side.
+            if x0 + px1 < 0 or x0 + px2 > scene_w or y0 < 0 or y0 + sh > scene_h:
+                continue
+            patch = resized[:, px1:px2]
+            x1 = max(0, x0 + px1 - VERIFY_SEARCH_PAD)
+            y1 = max(0, y0 - VERIFY_SEARCH_PAD)
+            x2 = min(scene_w, x0 + px2 + VERIFY_SEARCH_PAD)
+            y2 = min(scene_h, y0 + sh + VERIFY_SEARCH_PAD)
+            result = cv2.matchTemplate(
+                scene_gray[y1:y2, x1:x2], patch, cv2.TM_CCOEFF_NORMED
+            )
+            scores.append(
+                float(np.nan_to_num(result, nan=-1.0, posinf=-1.0, neginf=-1.0).max())
+            )
+        return min(scores) if scores else -1.0
 
     def _match_sift(
         self,
@@ -314,41 +407,90 @@ class ButtonDetector:
         offset_x: int,
         offset_y: int,
     ) -> DetectionResult | None:
-        """Match one template via SIFT + RANSAC-verified similarity transform."""
+        """Match one template via SIFT + RANSAC-verified similarity transform.
+
+        ``scene_gray`` is the whole frame; ``kps``/``des`` come from the search
+        box at ``(offset_x, offset_y)`` in it.
+        """
         if template.desc is None or len(template.kps) == 0:
             return None
 
-        matches: list[list[cv2.DMatch]] = self.matcher.knnMatch(template.desc, des, k=2)
-        good_matches = self._ratio_test(matches, ratio)
-
-        if len(good_matches) < max(4, min_matches // 2):
-            logger.debug(
-                f"{button_type}: only {len(good_matches)} ratio-test matches "
-                f"(need {max(4, min_matches // 2)} to attempt a geometric fit)"
-            )
-            return None
-
-        src_pts = np.float32([template.kps[m.queryIdx].pt for m in good_matches])
-        dst_pts = np.float32([kps[m.trainIdx].pt for m in good_matches])
-
-        fit = self._estimate_similarity(src_pts, dst_pts)
-        if fit is None:
-            logger.debug(f"{button_type}: similarity fit failed")
-            return None
-        transform, inlier_mask = fit
-
-        inliers = int(inlier_mask.sum())
+        neighbours = min(3, len(kps))
+        matches: list[list[cv2.DMatch]] = self.matcher.knnMatch(
+            template.desc, des, k=neighbours
+        )
+        remaining = self._candidate_matches(matches, ratio)
+        min_candidates = max(4, min_matches // 2)
         min_inliers = max(4, math.ceil(0.75 * min_matches))
-        inlier_ratio = inliers / len(good_matches)
 
-        if inliers < min_inliers or inlier_ratio < MIN_INLIER_RATIO:
+        if len(remaining) < min_candidates:
             logger.debug(
-                f"{button_type}: rejected fit with {inliers} inliers "
-                f"(need {min_inliers}) at ratio {inlier_ratio:.2f}"
+                f"{button_type}: only {len(remaining)} ratio-test matches "
+                f"(need {min_candidates} to attempt a geometric fit)"
             )
             return None
 
-        span = self._inlier_span(template, src_pts[inlier_mask.ravel() > 0])
+        # The best-supported fit can be the wrong instance (a neighbour that
+        # shares a word with the label). Set its matches aside and fit again.
+        for _ in range(MAX_FIT_ROUNDS):
+            if len(remaining) < min_candidates:
+                break
+            src_pts = np.float32([template.kps[m.queryIdx].pt for m in remaining])
+            dst_pts = np.float32([kps[m.trainIdx].pt for m in remaining])
+
+            fit = self._estimate_similarity(src_pts, dst_pts)
+            if fit is None:
+                logger.debug(f"{button_type}: similarity fit failed")
+                break
+            transform, inlier_mask = fit
+            inlier_flags = inlier_mask.ravel() > 0
+            inliers = int(inlier_flags.sum())
+            if inliers < min_inliers:
+                logger.debug(
+                    f"{button_type}: rejected fit with {inliers} inliers "
+                    f"(need {min_inliers})"
+                )
+                break
+
+            result = self._accept_fit(
+                template,
+                transform,
+                src_pts[inlier_flags],
+                # A keypoint with two candidate matches counts once.
+                inliers / len({m.queryIdx for m in remaining}),
+                scene_gray,
+                button_type,
+                min_inliers,
+                offset_x,
+                offset_y,
+            )
+            if result is not None:
+                return result
+            remaining = [m for m, used in zip(remaining, inlier_flags) if not used]
+        return None
+
+    def _accept_fit(
+        self,
+        template: TemplateCandidate,
+        transform: npt.NDArray[np.float64],
+        inlier_pts: npt.NDArray[np.float32],
+        inlier_ratio: float,
+        scene_gray: npt.NDArray[np.uint8],
+        button_type: ButtonType,
+        min_inliers: int,
+        offset_x: int,
+        offset_y: int,
+    ) -> DetectionResult | None:
+        """Gate one geometric fit; the detection if it is the button."""
+        inliers = len(inlier_pts)
+        if inlier_ratio < MIN_INLIER_RATIO:
+            logger.debug(
+                f"{button_type}: rejected fit with {inliers} inliers at ratio "
+                f"{inlier_ratio:.2f} (need {MIN_INLIER_RATIO})"
+            )
+            return None
+
+        span = self._inlier_span(template, inlier_pts)
         if span < MIN_INLIER_SPAN:
             logger.debug(
                 f"{button_type}: rejected fit covering {span:.2f} of the label "
@@ -363,9 +505,13 @@ class ButtonDetector:
         scale, rotation_deg = validated
 
         cx, cy = self._project_center(transform, template.width, template.height)
+        cx += offset_x
+        cy += offset_y
 
         # Appearance check: a geometrically coherent fit can still be a shared
         # text fragment inside a different button (e.g. "download" glyphs).
+        # ``scene_gray`` is the whole frame, not the search box: a button the
+        # box slices through is compared in full.
         verify_score = self._verify_match(template, scene_gray, cx, cy, scale)
         if verify_score < VERIFY_NCC_THRESHOLD:
             logger.debug(
@@ -374,8 +520,20 @@ class ButtonDetector:
             )
             return None
 
-        cx += offset_x
-        cy += offset_y
+        ends_score = self._label_ends_score(
+            template,
+            scene_gray,
+            cx - template.width * scale / 2,
+            cy - template.height * scale / 2,
+            scale,
+        )
+        if ends_score < END_NCC_THRESHOLD:
+            logger.debug(
+                f"{button_type}: rejected fit, one end of the label scored "
+                f"{ends_score:.2f} (need {END_NCC_THRESHOLD})"
+            )
+            return None
+
         confidence = min(
             1.0, 0.6 * min(inliers / (2 * min_inliers), 1.0) + 0.4 * inlier_ratio
         )
@@ -383,7 +541,7 @@ class ButtonDetector:
         logger.info(
             f"Detected {button_type} at ({int(cx)}, {int(cy)}) with {inliers} inliers "
             f"(scale {scale:.2f}, rot {rotation_deg:.1f} deg, "
-            f"confidence: {confidence:.2f})"
+            f"confidence: {confidence:.2f}, ends {ends_score:.2f})"
         )
 
         return DetectionResult(
@@ -544,8 +702,13 @@ class ButtonDetector:
             img_to_search = img[y1:y2, x1:x2]
             offset_x, offset_y = x1, y1
 
-        # Convert to grayscale and compute keypoints
-        gray = cv2.cvtColor(img_to_search, cv2.COLOR_RGB2GRAY)
+        # Keypoints come from the search box only; the whole frame stays at
+        # hand for the appearance check.
+        full_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        gray = full_gray[
+            offset_y : offset_y + img_to_search.shape[0],
+            offset_x : offset_x + img_to_search.shape[1],
+        ]
         kps, des = self.sift.detectAndCompute(gray, mask=None)
 
         best_result: DetectionResult | None = None
@@ -555,7 +718,7 @@ class ButtonDetector:
                     template,
                     kps,
                     des,
-                    gray,
+                    full_gray,
                     button_type,
                     min_matches,
                     ratio,
