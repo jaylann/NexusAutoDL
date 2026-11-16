@@ -308,7 +308,7 @@ def main() -> int:
     ticks: list[dict[str, Any]] = []
     others_fired: list[str] = []
     others_checked = False
-    maximised = False
+    maximised = 0  # the window handle that was maximised
     started = time.monotonic()
     while time.monotonic() - started <= args.seconds:
         tick_started = time.monotonic()
@@ -317,14 +317,22 @@ def main() -> int:
             dismissals.append(done)
             time.sleep(1.0)
 
+        # Vortex shows a splash window under the same title first, so the
+        # handle changes once and can go stale between two calls.
         handle = _vortex_window()
-        if handle and not maximised:
-            win32gui.ShowWindow(handle, win32con.SW_MAXIMIZE)
-            maximised = True
-            time.sleep(1.5)  # let the window repaint at its new size
+        origin = None
+        try:
+            if handle and handle != maximised:
+                win32gui.ShowWindow(handle, win32con.SW_MAXIMIZE)
+                maximised = handle
+                time.sleep(1.5)  # let the window repaint at its new size
+            if handle:
+                origin = win32gui.ClientToScreen(handle, (0, 0))
+        except win32gui.error as error:
+            print(f"  Vortex window went away mid-tick: {error}")
+            handle = 0
 
         report = _read_report(report_path)
-        origin = win32gui.ClientToScreen(handle, (0, 0)) if handle else None
         expected = expected_centre(report, origin) if origin else None
         tick: dict[str, Any] = {
             "seconds": round(tick_started - started, 1),
@@ -399,6 +407,11 @@ def main() -> int:
     )
     line = summary_line(args.label, verdict)
     print(f"\n{line}")
+    if os.environ.get("GITHUB_ACTIONS"):
+        # An annotation: readable from the run page and the API without
+        # downloading the frames.
+        level = "notice" if verdict["exit"] == EXIT_OK else "error"
+        print(f"::{level} title=Real Vortex::{line}")
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if step_summary:
         with open(step_summary, "a", encoding="utf-8") as handle_out:

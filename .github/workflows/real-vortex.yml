@@ -98,7 +98,20 @@ jobs:
           Copy-Item -Path "$env:APPDATA\Vortex\*.log" -Destination artifacts/vortex-logs -ErrorAction SilentlyContinue
           Get-Process -Name Vortex -ErrorAction SilentlyContinue | Stop-Process -Force
 
-      - name: Upload artifacts
+      # Small on purpose: the verdict and where Vortex drew its buttons,
+      # without the frames.
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-vortex-${{ matrix.vortex }}-at-${{ matrix.scale }}
+          path: |
+            artifacts/real-vortex/results.json
+            artifacts/real-vortex/vortex-dialog.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload frames and logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
