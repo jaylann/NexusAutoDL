@@ -3695,6 +3695,526 @@
         "variant": "flat",
         "source": "synthetic"
       }
+    },
+    {
+      "image": "synthetic/sibling_only_vortex_100.png",
+      "button_type": "vortex",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_vortex_100.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        590,
+        236
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/sibling_only_vortex_125.png",
+      "button_type": "vortex",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_vortex_125.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        643,
+        245
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/twin_vortex_125.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        363,
+        145
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "variant": "twin",
+        "source": "synthetic"
+      },
+      "points": [
+        [
+          363,
+          145
+        ],
+        [
+          713,
+          565
+        ]
+      ]
+    },
+    {
+      "image": "synthetic/sibling_only_vortex_150.png",
+      "button_type": "vortex",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_vortex_150.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        695,
+        254
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/twin_vortex_150.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        415,
+        154
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "variant": "twin",
+        "source": "synthetic"
+      },
+      "points": [
+        [
+          415,
+          154
+        ],
+        [
+          765,
+          574
+        ]
+      ]
+    },
+    {
+      "image": "synthetic/sibling_only_website_100.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_website_100.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        613,
+        233
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/sibling_only_website_125.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_website_125.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        671,
+        241
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/twin_website_125.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        391,
+        141
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "variant": "twin",
+        "source": "synthetic"
+      },
+      "points": [
+        [
+          391,
+          141
+        ],
+        [
+          741,
+          561
+        ]
+      ]
+    },
+    {
+      "image": "synthetic/sibling_only_website_150.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_website_150.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        729,
+        250
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/twin_website_150.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        449,
+        150
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "variant": "twin",
+        "source": "synthetic"
+      },
+      "points": [
+        [
+          449,
+          150
+        ],
+        [
+          799,
+          570
+        ]
+      ]
+    },
+    {
+      "image": "synthetic/sibling_only_wabbajack_100.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/sibling_only_wabbajack_100.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_wabbajack_100.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        489,
+        220
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_wabbajack_100.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        489,
+        220
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/sibling_only_wabbajack_125.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/sibling_only_wabbajack_125.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_wabbajack_125.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        516,
+        225
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_wabbajack_125.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        516,
+        225
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/twin_wabbajack_125.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        236,
+        125
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "variant": "twin",
+        "source": "synthetic"
+      },
+      "points": [
+        [
+          236,
+          125
+        ],
+        [
+          586,
+          545
+        ]
+      ]
+    },
+    {
+      "image": "synthetic/twin_wabbajack_125.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        236,
+        125
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.25,
+        "variant": "twin",
+        "source": "synthetic"
+      },
+      "points": [
+        [
+          236,
+          125
+        ],
+        [
+          586,
+          545
+        ]
+      ]
+    },
+    {
+      "image": "synthetic/sibling_only_wabbajack_150.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/sibling_only_wabbajack_150.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "sibling_only",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_wabbajack_150.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        543,
+        230
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/beside_sibling_wabbajack_150.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        543,
+        230
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "variant": "beside_sibling",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/twin_wabbajack_150.png",
+      "button_type": "website",
+      "expect": "present",
+      "point": [
+        263,
+        130
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "variant": "twin",
+        "source": "synthetic"
+      },
+      "points": [
+        [
+          263,
+          130
+        ],
+        [
+          613,
+          550
+        ]
+      ]
+    },
+    {
+      "image": "synthetic/twin_wabbajack_150.png",
+      "button_type": "wabbajack",
+      "expect": "present",
+      "point": [
+        263,
+        130
+      ],
+      "tolerance_px": 15,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.5,
+        "variant": "twin",
+        "source": "synthetic"
+      },
+      "points": [
+        [
+          263,
+          130
+        ],
+        [
+          613,
+          550
+        ]
+      ]
     }
   ]
 }

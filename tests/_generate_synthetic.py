@@ -29,6 +29,11 @@ Case families (``meta.variant``):
                   differs (same visual style -- must NOT match)
 * label_prefix:   text that only starts like a label ("Download m..." for
                   "Download manually"), as in Vortex's "Download mod" title
+* sibling_only:   a button whose label only shares the last word(s) with the
+                  target ("... download"), alone on screen -- must NOT match
+* beside_sibling: the target next to such a sibling, at 100/125/150 %
+                  (the Slow/Fast download pair on a mod page)
+* twin:           the same button twice at 125/150 %
 * flat:           uniform frames and a half-painted window
 
 Run from the repo root:
@@ -749,6 +754,96 @@ def _family_label_prefix(types: list[ButtonType]) -> list[dict[str, Any]]:
     return cases
 
 
+def drop_first_word(button: np.ndarray) -> np.ndarray:
+    """The button with the first word of its label painted over.
+
+    What is left is a sibling in the target's exact typography that shares
+    the rest of the label: "download" for "Slow download".
+    """
+    gray = cv2.cvtColor(button, cv2.COLOR_RGB2GRAY).astype(np.int16)
+    height, width = gray.shape
+    band = gray[height // 4 : 3 * height // 4].ravel().astype(np.int64)
+    fill = int(np.bincount(band, minlength=256).argmax())
+    text = np.abs(gray - fill) > 40
+    # Ignore the button's own border and whatever surrounds it.
+    text[: height // 5] = False
+    text[-(height // 5) :] = False
+    text[:, : width // 10] = False
+    text[:, -(width // 10) :] = False
+
+    columns = np.flatnonzero(text.any(axis=0))
+    rows = np.flatnonzero(text.any(axis=1))
+    word_gaps = np.flatnonzero(np.diff(columns) >= max(4, height // 12))
+    first_word_end = int(columns[word_gaps[0]]) + 1
+
+    sibling = button.copy()
+    sibling[rows.min() - 2 : rows.max() + 3, columns.min() - 2 : first_word_end + 1] = (
+        button[height // 2, width // 12]
+    )
+    return sibling
+
+
+_SIBLING_SCALES = (1.0, 1.25, 1.5)
+
+
+def _family_siblings(
+    types: list[ButtonType], buttons: dict[ButtonType, np.ndarray]
+) -> list[dict[str, Any]]:
+    """Buttons that share a word with the target, alone and beside it."""
+    # Template -> the types that must (not) find it. The 100 % "Slow download"
+    # capture is searched as WEBSITE too; its 150 % twin is out of the
+    # WABBAJACK type's scale range when enlarged further.
+    subjects = [
+        (ButtonType.VORTEX, (ButtonType.VORTEX,)),
+        (ButtonType.WEBSITE, (ButtonType.WEBSITE,)),
+        (ButtonType.WABBAJACK, (ButtonType.WEBSITE, ButtonType.WABBAJACK)),
+    ]
+    cases: list[dict[str, Any]] = []
+    variant = 1000
+    for source, searched in subjects:
+        if source not in types:
+            continue
+        button = buttons[source]
+        sibling = drop_first_word(button)
+        for scale in _SIBLING_SCALES:
+            tag = f"{source.value}_{int(scale * 100):03d}"
+
+            canvas = _background(variant)
+            variant += 1
+            _paste(canvas, sibling, _PASTE_XY, scale)
+            rel = _write_case_image(f"sibling_only_{tag}", canvas)
+            cases += [
+                _absent_case(rel, bt, "sibling_only") for bt in searched if bt in types
+            ]
+
+            canvas = _background(variant)
+            variant += 1
+            center = _paste(canvas, button, (380, 200), scale)
+            below = 200 + round(button.shape[0] * scale) + 40
+            _paste(canvas, sibling, (380, below), scale)
+            rel = _write_case_image(f"beside_sibling_{tag}", canvas)
+            cases += [
+                _present_case(rel, bt, center, scale, _TOL_DEGRADED, "beside_sibling")
+                for bt in searched
+                if bt in types
+            ]
+
+            if scale > 1.0:
+                canvas = _background(variant)
+                variant += 1
+                c1 = _paste(canvas, button, (100, 100), scale)
+                c2 = _paste(canvas, button, (450, 520), scale)
+                rel = _write_case_image(f"twin_{tag}", canvas)
+                cases += [
+                    _present_case(
+                        rel, bt, c1, scale, _TOL_DEGRADED, "twin", points=[c1, c2]
+                    )
+                    for bt in searched
+                    if bt in types
+                ]
+    return cases
+
+
 def half_painted_window() -> np.ndarray:
     """A window caught mid-repaint: one painted rectangle, the rest black.
 
@@ -793,6 +888,7 @@ def generate() -> list[dict[str, Any]]:
     cases += _family_slow_download_100(types, buttons)
     cases += _family_label_prefix(types)
     cases += _family_flat(types)
+    cases += _family_siblings(types, buttons)
     return cases
 
 

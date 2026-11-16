@@ -113,9 +113,12 @@ class TestDetect:
         assert result.scale == pytest.approx(1.0, abs=0.05)
 
     def test_fallback_path_reports_template_method(
-        self, detector: ButtonDetector
+        self, detector: ButtonDetector, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # 0.65x starves SIFT on the thin-text wabbajack template.
+        # Template matching takes over when the feature path finds nothing.
+        # Which scenes starve SIFT shifts with its tuning, so it is switched
+        # off here rather than relied on to fail.
+        monkeypatch.setattr(detector, "_match_sift", lambda *args, **kwargs: None)
         img, center = self._scene(ButtonType.WABBAJACK, scale=0.65)
         result = detector.detect(img, ButtonType.WABBAJACK)
         assert result is not None
@@ -234,3 +237,32 @@ class TestButtonsCutByAnEdge:
         img, center = TestDetect()._scene(ButtonType.VORTEX)
         frame = np.ascontiguousarray(img[:, : center[0] - 60])
         assert detector.detect(frame, ButtonType.VORTEX) is None
+
+
+class TestCandidateMatches:
+    """Lowe's ratio test, relaxed for a label that is on screen twice."""
+
+    @staticmethod
+    def _group(*distances: float) -> list:
+        import cv2
+
+        return [cv2.DMatch(0, i, d) for i, d in enumerate(distances)]
+
+    def test_unique_match_is_kept(self, detector: ButtonDetector) -> None:
+        kept = detector._candidate_matches([self._group(10, 40, 50)], 0.75)
+        assert [m.trainIdx for m in kept] == [0]
+
+    def test_two_equal_matches_are_both_kept_when_they_beat_the_third(
+        self, detector: ButtonDetector
+    ) -> None:
+        # The same word twice: plain Lowe drops the keypoint (10 vs 11).
+        kept = detector._candidate_matches([self._group(10, 11, 50)], 0.75)
+        assert [m.trainIdx for m in kept] == [0, 1]
+
+    def test_three_similar_matches_are_noise(self, detector: ButtonDetector) -> None:
+        assert detector._candidate_matches([self._group(10, 11, 12)], 0.75) == []
+
+    def test_ambiguous_pair_without_a_third_is_dropped(
+        self, detector: ButtonDetector
+    ) -> None:
+        assert detector._candidate_matches([self._group(10, 11)], 0.75) == []
