@@ -1,6 +1,377 @@
 {
   "cases": [
     {
+      "image": "real/issue23_old_vortex.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        522,
+        322
+      ],
+      "tolerance_px": 6,
+      "meta": {
+        "source": "real",
+        "variant": "issue23_old_dialog",
+        "resolution": "620x440",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, debug frame cropped to the Vortex dialog"
+      }
+    },
+    {
+      "image": "real/issue23_old_vortex.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_old_dialog",
+        "resolution": "620x440",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, debug frame cropped to the Vortex dialog"
+      }
+    },
+    {
+      "image": "real/issue23_old_vortex.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_old_dialog",
+        "resolution": "620x440",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, debug frame cropped to the Vortex dialog"
+      }
+    },
+    {
+      "image": "real/issue23_old_vortex.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_old_dialog",
+        "resolution": "620x440",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, debug frame cropped to the Vortex dialog"
+      }
+    },
+    {
+      "image": "real/issue23_old_vortex.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_old_dialog",
+        "resolution": "620x440",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, debug frame cropped to the Vortex dialog"
+      }
+    },
+    {
+      "image": "real/issue23_old_vortex.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_old_dialog",
+        "resolution": "620x440",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, debug frame cropped to the Vortex dialog"
+      }
+    },
+    {
+      "image": "real/issue13_new_vortex_dialog.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        182,
+        379
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog",
+        "resolution": "696x487",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "2560x1440 at 100 %",
+        "origin": "GitHub issue #13, annotated screenshot cropped to the Vortex dialog"
+      },
+      "known_gap": "The pictures of 'Download manually' are 150 % captures. Shrunk to two thirds they do not match text Windows rendered at 100 %. Needs a picture captured at 100 %."
+    },
+    {
+      "image": "real/issue13_new_vortex_dialog.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog",
+        "resolution": "696x487",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "2560x1440 at 100 %",
+        "origin": "GitHub issue #13, annotated screenshot cropped to the Vortex dialog"
+      }
+    },
+    {
+      "image": "real/issue13_new_vortex_dialog.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog",
+        "resolution": "696x487",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "2560x1440 at 100 %",
+        "origin": "GitHub issue #13, annotated screenshot cropped to the Vortex dialog"
+      }
+    },
+    {
+      "image": "real/issue13_new_vortex_dialog.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog",
+        "resolution": "696x487",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "2560x1440 at 100 %",
+        "origin": "GitHub issue #13, annotated screenshot cropped to the Vortex dialog"
+      }
+    },
+    {
+      "image": "real/issue13_new_vortex_dialog.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog",
+        "resolution": "696x487",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "2560x1440 at 100 %",
+        "origin": "GitHub issue #13, annotated screenshot cropped to the Vortex dialog"
+      }
+    },
+    {
+      "image": "real/issue13_new_vortex_dialog.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog",
+        "resolution": "696x487",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "2560x1440 at 100 %",
+        "origin": "GitHub issue #13, annotated screenshot cropped to the Vortex dialog"
+      }
+    },
+    {
+      "image": "real/issue13_new_vortex_crop.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        243,
+        240
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog_crop",
+        "resolution": "746x292",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "unknown resolution at 100 %",
+        "origin": "GitHub issue #13, debug frame crop as posted (JPEG)"
+      },
+      "known_gap": "The pictures of 'Download manually' are 150 % captures. Shrunk to two thirds they do not match text Windows rendered at 100 %. Needs a picture captured at 100 %."
+    },
+    {
+      "image": "real/issue13_new_vortex_crop.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog_crop",
+        "resolution": "746x292",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "unknown resolution at 100 %",
+        "origin": "GitHub issue #13, debug frame crop as posted (JPEG)"
+      }
+    },
+    {
+      "image": "real/issue13_new_vortex_crop.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog_crop",
+        "resolution": "746x292",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "unknown resolution at 100 %",
+        "origin": "GitHub issue #13, debug frame crop as posted (JPEG)"
+      }
+    },
+    {
+      "image": "real/issue13_new_vortex_crop.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog_crop",
+        "resolution": "746x292",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "unknown resolution at 100 %",
+        "origin": "GitHub issue #13, debug frame crop as posted (JPEG)"
+      }
+    },
+    {
+      "image": "real/issue13_new_vortex_crop.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog_crop",
+        "resolution": "746x292",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "unknown resolution at 100 %",
+        "origin": "GitHub issue #13, debug frame crop as posted (JPEG)"
+      }
+    },
+    {
+      "image": "real/issue13_new_vortex_crop.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue13_new_dialog_crop",
+        "resolution": "746x292",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "display": "unknown resolution at 100 %",
+        "origin": "GitHub issue #13, debug frame crop as posted (JPEG)"
+      }
+    },
+    {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "vortex",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
       "image": "synthetic/vortex_065.png",
       "button_type": "vortex",
       "expect": "present",
@@ -3393,6 +3764,140 @@
         "resolution": "1280x720",
         "scale": 1.25,
         "variant": "slow_download_100",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        1189,
+        47
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.85,
+        "variant": "legacy_100",
+        "source": "synthetic",
+        "ui_generation": "legacy"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        95,
+        648
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "legacy_100",
+        "source": "synthetic",
+        "ui_generation": "legacy"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
         "source": "synthetic"
       }
     },

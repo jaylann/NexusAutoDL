@@ -85,6 +85,17 @@ END_PATCH_FRACTION = 0.3
 END_PATCH_MARGIN = 4
 END_NCC_THRESHOLD = 0.5
 
+# What is written on the button, compared without its outline. The template
+# search matches shape first: another button of the same size and colour
+# scores 0.9 as a whole. On a user's screenshot (issue #23) Vortex's own "Go
+# Premium" button passed as "Understood!" and as the old "Download". The middle
+# band of a picture holds the label and its fill but no border; there those
+# two score 0.56 and 0.57, the weakest true template-search match 0.85.
+LABEL_BAND_X = (0.15, 0.85)
+LABEL_BAND_Y = (0.25, 0.75)
+LABEL_SEARCH_PAD = 3
+LABEL_NCC_THRESHOLD = 0.70
+
 # Geometric fits to try per template. The best-supported one can be such a
 # neighbour; its matches are set aside and the rest is fitted again.
 MAX_FIT_ROUNDS = 3
@@ -136,6 +147,7 @@ class ButtonDetector:
         }
         optional_assets: dict[str, str] = {
             "vortex_new": "VortexDownloadButtonNew.png",
+            "vortex_legacy_100": "VortexDownloadButtonLegacy100.png",
             "web_new": "WebsiteDownloadButtonNew.png",
         }
 
@@ -175,6 +187,11 @@ class ButtonDetector:
             ButtonType.VORTEX: (
                 ("new", assets.vortex_new_img),
                 ("legacy", assets.vortex_img),
+                # The old orange button as Vortex draws it at 100 % scaling,
+                # cut from a user's screenshot (issue #23). The two pictures
+                # above are 150 % captures; shrunk to two thirds they do not
+                # look like text Windows rendered at 100 %.
+                ("legacy-100", assets.vortex_legacy_100_img),
             ),
             ButtonType.WEBSITE: (
                 ("new", assets.web_new_img),
@@ -399,6 +416,43 @@ class ButtonDetector:
                 float(np.nan_to_num(result, nan=-1.0, posinf=-1.0, neginf=-1.0).max())
             )
         return min(scores) if scores else -1.0
+
+    def _label_score(
+        self,
+        template: TemplateCandidate,
+        scene_gray: npt.NDArray[np.uint8],
+        left: int,
+        top: int,
+        scale: float,
+    ) -> float:
+        """NCC of the label band alone at a predicted button position.
+
+        ``left``/``top`` is where the template's top-left corner lands in
+        ``scene_gray``. 1.0 when the band cannot be judged: it has no text in
+        it, or it does not lie fully inside the image.
+        """
+        sw = max(8, round(template.width * scale))
+        sh = max(8, round(template.height * scale))
+        interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
+        resized = cv2.resize(template.gray, (sw, sh), interpolation=interpolation)
+
+        bx1, bx2 = round(LABEL_BAND_X[0] * sw), round(LABEL_BAND_X[1] * sw)
+        by1, by2 = round(LABEL_BAND_Y[0] * sh), round(LABEL_BAND_Y[1] * sh)
+        band = resized[by1:by2, bx1:bx2]
+        if band.shape[0] < 4 or band.shape[1] < 4 or float(band.std()) < 1.0:
+            return 1.0
+
+        scene_h, scene_w = scene_gray.shape[:2]
+        if left + bx1 < 0 or top + by1 < 0:
+            return 1.0
+        if left + bx2 > scene_w or top + by2 > scene_h:
+            return 1.0
+        x1 = max(0, left + bx1 - LABEL_SEARCH_PAD)
+        y1 = max(0, top + by1 - LABEL_SEARCH_PAD)
+        x2 = min(scene_w, left + bx2 + LABEL_SEARCH_PAD)
+        y2 = min(scene_h, top + by2 + LABEL_SEARCH_PAD)
+        result = cv2.matchTemplate(scene_gray[y1:y2, x1:x2], band, cv2.TM_CCOEFF_NORMED)
+        return float(np.nan_to_num(result, nan=-1.0, posinf=-1.0, neginf=-1.0).max())
 
     def _match_sift(
         self,
@@ -689,6 +743,13 @@ class ButtonDetector:
             logger.debug(
                 f"{button_type}: NCC peak {peak:.2f} rejected, one end of the "
                 f"label scored {ends_score:.2f} (need {END_NCC_THRESHOLD})"
+            )
+            return None
+        label_score = self._label_score(template, scene_gray, px, py, scale)
+        if label_score < LABEL_NCC_THRESHOLD:
+            logger.debug(
+                f"{button_type}: NCC peak {peak:.2f} rejected, the label itself "
+                f"scored {label_score:.2f} (need {LABEL_NCC_THRESHOLD})"
             )
             return None
         cx = px + sw / 2.0 + offset_x

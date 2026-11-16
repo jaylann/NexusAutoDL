@@ -6,6 +6,9 @@ Each entry in ``fixtures/detection/cases.json`` becomes one test:
   lands within ``tolerance_px`` of the ground-truth ``point``.
 * ``expect == "absent"``  -- ``detect`` must return ``None`` (false-positive
   guard; this is the direct regression test for raising ``min_matches``).
+* ``known_gap`` on a present-case -- a button the detector does not find yet.
+  Reported as an expected failure while it is missed, a failure when it is
+  detected anywhere else, and a failure once it is found (remove the marker).
 
 Cases whose button type / template asset / image is unavailable on the current
 branch are skipped, not failed, so the suite is portable across branches.
@@ -23,6 +26,7 @@ from tests.harness import (
     case_id,
     case_image_path,
     ground_truth_error,
+    known_gap,
     load_cases,
     read_rgb,
     skip_reason,
@@ -59,11 +63,25 @@ def test_detection_case(case: dict[str, Any], detector: ButtonDetector) -> None:
         return
 
     # expect == "present"
+    tolerance = float(case["tolerance_px"])
+    gap = known_gap(case)
+    if gap:
+        if result is None:
+            pytest.xfail(f"known gap: {gap}")
+        error = ground_truth_error((result.x, result.y), case)
+        assert error <= tolerance, (
+            f"known gap, but {button_type.value} was detected in the wrong "
+            f"place: ({result.x}, {result.y}) is {error:.1f}px from the button"
+        )
+        pytest.fail(
+            f"known gap closed: {button_type.value} is found {error:.1f}px from "
+            "the button. Remove 'known_gap' from this case in cases.json."
+        )
+
     assert result is not None, (
         f"expected {button_type.value} but detect() returned None"
     )
 
-    tolerance = float(case["tolerance_px"])
     error = ground_truth_error((result.x, result.y), case)
     assert error <= tolerance, (
         f"{button_type.value} centroid ({result.x}, {result.y}) is {error:.1f}px "

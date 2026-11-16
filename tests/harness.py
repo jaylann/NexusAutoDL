@@ -99,6 +99,18 @@ def skip_reason(
     return None
 
 
+def known_gap(case: dict[str, Any]) -> str | None:
+    """Why a present-case is known not to be detected yet, or None.
+
+    A known gap is a button the detector misses today. It stays in the
+    manifest so the miss is visible and so a wrong click there still fails:
+    the only accepted outcome is "nothing detected". Once the button is found,
+    the marker has to be removed (the test fails until it is).
+    """
+    reason = case.get("known_gap")
+    return str(reason) if reason else None
+
+
 def case_id(case: dict[str, Any]) -> str:
     """Readable id: ``<source>-<variant>-<scale>-<button_type>-<expect>``."""
     meta = case.get("meta", {})

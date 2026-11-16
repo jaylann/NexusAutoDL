@@ -73,6 +73,9 @@ _LEGACY_ASSET: dict[ButtonType, str] = {
     ButtonType.WEBSITE: "WebsiteDownloadButton.png",
 }
 
+# The old Vortex button as drawn at 100 % scaling (cut from a real screenshot).
+_VORTEX_LEGACY_100_ASSET = "VortexDownloadButtonLegacy100.png"
+
 # Types whose templates depict the SAME visual button: WabbajackDownloadButton
 # and WebsiteDownloadButtonNew are both the Nexus "Slow download" button at
 # different sizes. Detecting one where the other sits is correct behaviour, so
@@ -715,6 +718,44 @@ def _family_slow_download_100(
     return cases
 
 
+def _family_vortex_legacy_100(types: list[ButtonType]) -> list[dict[str, Any]]:
+    """The old Vortex button at the size a 100 % monitor shows it.
+
+    The picture is 71x31 px, far smaller than any other, so it gets its own
+    cases: found where it is, and no other button type fires on it. It is not
+    rendered larger than it is: its 12 keypoints do not carry a geometric fit,
+    and the template search stops at 1.1x on purpose (see ``TM_SCALES``).
+    Larger renders belong to the 150 % picture, scaled down (``legacy_clean``).
+    """
+    path = ASSETS_PATH / _VORTEX_LEGACY_100_ASSET
+    if ButtonType.VORTEX not in types or not path.exists():
+        return []
+    button = read_rgb(path)
+    cases: list[dict[str, Any]] = []
+    for i, scale in enumerate((0.85, 1.0)):
+        canvas = _background(950 + i)
+        frac = _POSITION_POOL[(i + 2) % len(_POSITION_POOL)]
+        center = _paste_at_fraction(canvas, button, frac, scale)
+        rel = _write_case_image(f"vortex_legacy_100_{int(scale * 100):03d}", canvas)
+        cases.append(
+            _present_case(
+                rel,
+                ButtonType.VORTEX,
+                center,
+                scale,
+                _TOL_CLEAN,
+                "legacy_100",
+                generation="legacy",
+            )
+        )
+        cases += [
+            _absent_case(rel, other, "legacy_100_cross")
+            for other in types
+            if other != ButtonType.VORTEX
+        ]
+    return cases
+
+
 def label_prefix_scene(fraction: float, scale: float) -> np.ndarray:
     """The Vortex label cut off after ``fraction`` of its width.
 
@@ -887,6 +928,7 @@ def generate() -> list[dict[str, Any]]:
     cases += _family_empty(types)
     cases += _family_legacy(types)
     cases += _family_slow_download_100(types, buttons)
+    cases += _family_vortex_legacy_100(types)
     cases += _family_label_prefix(types)
     cases += _family_flat(types)
     cases += _family_siblings(types, buttons)
