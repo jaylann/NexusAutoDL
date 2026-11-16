@@ -18,8 +18,10 @@ on:
       - "models/**"
       - "assets/**"
       - "tools/**"
+      - "tests/**"
       - "app.py"
       - "main.py"
+      - "detection_report.py"
       - "requirements.txt"
       - ".github/workflows/windows-displays.yml"
 
@@ -36,8 +38,6 @@ jobs:
     # Pinned image: driver install and display APIs differ between Windows builds.
     runs-on: windows-2025
     timeout-minutes: 30
-    # Informational until the rig has proven stable; then drop this line.
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -102,9 +102,10 @@ jobs:
           --topology "${{ matrix.topology }}"
           --noisy --verify --strict
 
+      # 0.999 means no miss and no false positive among the scenario cases.
       - name: Detection report (scenario cases)
         if: ${{ !cancelled() && steps.displays.outcome == 'success' }}
-        run: python detection_report.py --source scenario
+        run: python detection_report.py --source scenario --fail-under 0.999
 
       - name: Click-landing check (real app)
         if: ${{ !cancelled() && steps.displays.outcome == 'success' }}
