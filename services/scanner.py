@@ -260,8 +260,8 @@ class Scanner:
         if self.status.web_retry_count >= retry_limit:
             if self.config.vortex:
                 logger.info(
-                    "Web button not found after %s attempts, returning to Vortex scan",
-                    retry_limit,
+                    f"Web button not found after {retry_limit} attempts, "
+                    "returning to Vortex scan"
                 )
                 self.status.current_action = "Rechecking Vortex (web button missing)"
                 self.status.web_retry_count = 0
