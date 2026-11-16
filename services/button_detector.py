@@ -63,6 +63,24 @@ TM_SCALES: tuple[float, ...] = tuple(
     round(0.60 * (1.10 / 0.60) ** (i / 7), 4) for i in range(8)
 )
 
+# The ladder's steps are 9 % apart, so a button can be up to 4.5 % off the
+# size it was found at. The whole picture still correlates there, but its
+# label is a pixel or two out of place at the ends, enough to fail the label
+# check: the old Vortex button at 150 % scaling (real Vortex 1.13.7) scored
+# 0.70 at the ladder's size and 0.95 at its own. The label is therefore
+# judged at each of these sizes around the ladder's and the best one counts.
+# The size that fits the label is not the one that fits the outline best: a
+# button's padding does not scale exactly with its text.
+TM_REFINE_FACTORS: tuple[float, ...] = (
+    0.955,
+    0.97,
+    0.985,
+    1.0,
+    1.015,
+    1.03,
+    1.045,
+)
+
 # Layered acceptance: strong intensity peaks pass outright; band peaks must
 # also match the template's gradient (edge) signature at the peak location.
 # Measured on adversarial rect+text UI scenes: false peaks reach 0.824
@@ -98,12 +116,14 @@ END_NCC_THRESHOLD = 0.5
 # search matches shape first: another button of the same size and colour
 # scores 0.9 as a whole. On a user's screenshot (issue #23) Vortex's own "Go
 # Premium" button passed as "Understood!" and as the old "Download". The middle
-# band of a picture holds the label and its fill but no border; there those
-# two score 0.56 and 0.57, the weakest true template-search match 0.85.
+# band of a picture holds the label and its fill but no border. There the
+# wrong matches score 0.60 to 0.64 and every true template match in the
+# benchmark 0.90 or more, real Vortex 1.13.7 at 125 and 150 % among them. The
+# bar sits between.
 LABEL_BAND_X = (0.15, 0.85)
 LABEL_BAND_Y = (0.25, 0.75)
 LABEL_SEARCH_PAD = 3
-LABEL_NCC_THRESHOLD = 0.70
+LABEL_NCC_THRESHOLD = 0.75
 
 # Geometric fits to try per template. The best-supported one can be such a
 # neighbour; its matches are set aside and the rest is fitted again.
@@ -433,12 +453,12 @@ class ButtonDetector:
         left: int,
         top: int,
         scale: float,
-    ) -> float:
+    ) -> float | None:
         """NCC of the label band alone at a predicted button position.
 
         ``left``/``top`` is where the template's top-left corner lands in
-        ``scene_gray``. 1.0 when the band cannot be judged: it has no text in
-        it, or it does not lie fully inside the image.
+        ``scene_gray``. None when the band cannot be judged: it has no text
+        in it, or it does not lie fully inside the image.
         """
         sw = max(8, round(template.width * scale))
         sh = max(8, round(template.height * scale))
@@ -449,19 +469,48 @@ class ButtonDetector:
         by1, by2 = round(LABEL_BAND_Y[0] * sh), round(LABEL_BAND_Y[1] * sh)
         band = resized[by1:by2, bx1:bx2]
         if band.shape[0] < 4 or band.shape[1] < 4 or float(band.std()) < 1.0:
-            return 1.0
+            return None
 
         scene_h, scene_w = scene_gray.shape[:2]
         if left + bx1 < 0 or top + by1 < 0:
-            return 1.0
+            return None
         if left + bx2 > scene_w or top + by2 > scene_h:
-            return 1.0
+            return None
         x1 = max(0, left + bx1 - LABEL_SEARCH_PAD)
         y1 = max(0, top + by1 - LABEL_SEARCH_PAD)
         x2 = min(scene_w, left + bx2 + LABEL_SEARCH_PAD)
         y2 = min(scene_h, top + by2 + LABEL_SEARCH_PAD)
         result = cv2.matchTemplate(scene_gray[y1:y2, x1:x2], band, cv2.TM_CCOEFF_NORMED)
         return float(np.nan_to_num(result, nan=-1.0, posinf=-1.0, neginf=-1.0).max())
+
+    def _best_label_score(
+        self,
+        template: TemplateCandidate,
+        scene_gray: npt.NDArray[np.uint8],
+        cx: float,
+        cy: float,
+        scale: float,
+    ) -> float | None:
+        """Best label score for a button centred on ``(cx, cy)``.
+
+        Tried at each size in ``TM_REFINE_FACTORS`` around ``scale``; None
+        when the label cannot be judged at any of them.
+        """
+        scores: list[float] = []
+        for factor in TM_REFINE_FACTORS:
+            refined = scale * factor
+            width = max(8, round(template.width * refined))
+            height = max(8, round(template.height * refined))
+            score = self._label_score(
+                template,
+                scene_gray,
+                round(cx - width / 2),
+                round(cy - height / 2),
+                refined,
+            )
+            if score is not None:
+                scores.append(score)
+        return max(scores) if scores else None
 
     def _match_sift(
         self,
@@ -754,8 +803,10 @@ class ButtonDetector:
                 f"label scored {ends_score:.2f} (need {END_NCC_THRESHOLD})"
             )
             return None
-        label_score = self._label_score(template, scene_gray, px, py, scale)
-        if label_score < LABEL_NCC_THRESHOLD:
+        label_score = self._best_label_score(
+            template, scene_gray, px + sw / 2.0, py + sh / 2.0, scale
+        )
+        if label_score is not None and label_score < LABEL_NCC_THRESHOLD:
             logger.debug(
                 f"{button_type}: NCC peak {peak:.2f} rejected, the label itself "
                 f"scored {label_score:.2f} (need {LABEL_NCC_THRESHOLD})"
