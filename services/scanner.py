@@ -28,6 +28,9 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 VORTEX_WEB_RETRY_LIMIT = 3  # Attempts before falling back to Vortex search
+# Scans to wait for the old site's "click here" link (--legacy) before moving
+# on. Today's site starts the download itself and never shows it.
+CLICK_DIALOG_RETRY_LIMIT = 5
 
 
 class Scanner:
@@ -372,6 +375,7 @@ class Scanner:
 
         vortex_found: bool = False
         web_clicked: bool = False
+        click_dialog_waits: int = 0
         iteration: int = 0
 
         try:
@@ -400,9 +404,18 @@ class Scanner:
                             dialog_complete = True
                             break
                     if not dialog_complete:
-                        self.status.current_action = "Waiting for click dialog..."
-                        self._update_status()
+                        click_dialog_waits += 1
+                        if click_dialog_waits >= CLICK_DIALOG_RETRY_LIMIT:
+                            logger.info(
+                                "No 'click here' link after "
+                                f"{CLICK_DIALOG_RETRY_LIMIT} scans, moving on"
+                            )
+                            dialog_complete = True
+                        else:
+                            self.status.current_action = "Waiting for click dialog..."
+                            self._update_status()
                     if dialog_complete:
+                        click_dialog_waits = 0
                         # Reset for next mod
                         vortex_found = False
                         web_clicked = False

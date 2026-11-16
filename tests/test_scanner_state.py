@@ -154,3 +154,21 @@ def test_vortex_window_off_every_scanned_monitor_is_reported(make_scanner) -> No
     assert scanner.status.current_action == "Vortex window is not on a scanned monitor"
     assert stub.calls == []
     assert scanner.status.clicks_count == 0
+
+
+def test_legacy_mode_does_not_wait_forever_for_the_click_here_link(
+    make_scanner,
+) -> None:
+    # Today's Nexus site starts the download itself; the old "click here" link
+    # never shows. With --legacy the app must give up on it and go on to the
+    # next mod instead of stalling after the first one.
+    scanner, stub = make_scanner(vortex=True, legacy=True)
+    stub.responses[ButtonType.VORTEX] = _detection(ButtonType.VORTEX)
+    stub.responses[ButtonType.WEBSITE] = _detection(ButtonType.WEBSITE)
+
+    scanner.scan_loop(max_iterations=2 + scanner_module.CLICK_DIALOG_RETRY_LIMIT + 2)
+
+    # Vortex, website, a bounded wait for the link, then Vortex again.
+    assert stub.calls.count(ButtonType.CLICK) == scanner_module.CLICK_DIALOG_RETRY_LIMIT
+    assert scanner.status.clicks_count >= 3
+    assert [c for c in stub.calls if c is ButtonType.VORTEX][1:] != []
