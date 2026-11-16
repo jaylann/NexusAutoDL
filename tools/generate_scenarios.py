@@ -25,7 +25,15 @@ Examples:
 
 Tip: to sweep DPI, change Windows Display > Scale between runs (e.g. 100% then
 150%) and pass a different --prefix each time -- each run captures whatever the
-real pipeline produces at that scaling.
+real pipeline produces at that scaling. On a virtual-display rig,
+``tools/ci/set_display_layout.py`` sets the topology instead (see
+``.github/workflows/windows-displays.yml``).
+
+Label integrity: creating the ``ScreenCapture`` (mss) makes this process
+per-monitor DPI aware, so Tk geometry is in physical pixels. Windows are
+therefore sized from the matched *physical* MSS rect, and every capture is
+checked to really show the window covering that rect (otherwise the computed
+label would be wrong); a failed coverage check is never written as a case.
 """
 
 from __future__ import annotations
@@ -73,6 +81,15 @@ _POSITION_POOL: tuple[tuple[float, float], ...] = (
 )
 
 _SCALE_POOL: tuple[float, ...] = (1.0, 1.25, 1.5, 0.85)
+
+# Share of a monitor's non-button pixels that must show the window background
+# for the label to be trusted. A visible taskbar costs ~5 %; a window sized in
+# the wrong DPI space misses a third or more of the monitor.
+_MIN_COVERAGE = 0.90
+
+# Exit codes beyond argument errors.
+_EXIT_COVERAGE = 3  # a window did not cover its monitor: labels would be wrong
+_EXIT_STRICT = 4  # --strict and the detector missed / was off on some case
 
 
 def _save_png_unicode_safe(path: Path, rgb: Any) -> None:
@@ -124,7 +141,7 @@ def _ground_truth_point(
 
 def _render_and_capture(
     root: Any,
-    monitor: Any,
+    phys: dict[str, int],
     photo_img: Any,
     fx: float,
     fy: float,
@@ -132,18 +149,24 @@ def _render_and_capture(
     screen_capture: Any,
     settle: float,
 ) -> Any:
-    """Draw the button on a borderless full-monitor window and capture it."""
+    """Draw the button on a borderless window covering the physical monitor rect.
+
+    ``phys`` is the MSS rect (physical pixels). The process is per-monitor DPI
+    aware once ``ScreenCapture`` exists, so Tk geometry is physical as well.
+    """
     import tkinter as tk
     from PIL import ImageTk
 
+    width, height = phys["width"], phys["height"]
     win = tk.Toplevel(root)
     win.overrideredirect(True)
-    win.geometry(f"{monitor.width}x{monitor.height}+{monitor.x}+{monitor.y}")
+    win.attributes("-topmost", True)
+    win.geometry(f"{width}x{height}+{phys['left']}+{phys['top']}")
 
     canvas = tk.Canvas(
         win,
-        width=monitor.width,
-        height=monitor.height,
+        width=width,
+        height=height,
         highlightthickness=0,
         bg=bg_color,
     )
@@ -151,8 +174,8 @@ def _render_and_capture(
 
     tk_photo = ImageTk.PhotoImage(photo_img) if photo_img is not None else None
     if tk_photo is not None:
-        cx = int(fx * monitor.width)
-        cy = int(fy * monitor.height)
+        cx = int(fx * width)
+        cy = int(fy * height)
         canvas.create_image(cx, cy, image=tk_photo, anchor="center")
 
     win.lift()
@@ -164,6 +187,56 @@ def _render_and_capture(
     win.destroy()
     root.update()  # process the destroy so the next window paints cleanly
     return img
+
+
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    value = color.lstrip("#")
+    return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+
+
+def _coverage(
+    img: Any,
+    phys: dict[str, int],
+    min_x: int,
+    min_y: int,
+    bg_color: str,
+    button_box: tuple[int, int, int, int] | None,
+) -> float:
+    """Share of the monitor rect (minus the button) showing the window background.
+
+    Proves the window really covered the physical monitor, which the ground
+    truth point assumes. ``button_box`` is ``(x1, y1, x2, y2)`` in image px.
+    """
+    import numpy as np
+
+    x1, y1 = phys["left"] - min_x, phys["top"] - min_y
+    x2, y2 = x1 + phys["width"], y1 + phys["height"]
+    region = img[max(0, y1) : max(0, y2), max(0, x1) : max(0, x2)].astype(np.int16)
+    if region.size == 0:
+        return 0.0
+
+    target = np.array(_hex_to_rgb(bg_color), dtype=np.int16)
+    matches = np.all(np.abs(region - target) <= 6, axis=2)
+    mask = np.ones(matches.shape, dtype=bool)
+    if button_box is not None:
+        bx1, by1, bx2, by2 = button_box
+        mask[
+            max(0, by1 - y1) : max(0, by2 - y1), max(0, bx1 - x1) : max(0, bx2 - x1)
+        ] = False
+    considered = int(mask.sum())
+    return float((matches & mask).sum()) / considered if considered else 0.0
+
+
+def _monitor_scale(phys: dict[str, int]) -> float | None:
+    """Effective Windows scale (1.0 = 100 %) of a physical monitor rect."""
+    try:
+        from tools.win_display import dpi_scale_at
+
+        return dpi_scale_at(
+            phys["left"] + phys["width"] // 2, phys["top"] + phys["height"] // 2
+        )
+    except Exception:
+        return None
 
 
 def _build_plan(
@@ -252,6 +325,16 @@ def main() -> int:
         "instead of writing a standalone stub",
     )
     parser.add_argument("--assets", type=Path, default=Path("assets"))
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help=f"with --verify: exit {_EXIT_STRICT} if any case is MISS/OFF (for CI)",
+    )
+    parser.add_argument(
+        "--topology",
+        default=None,
+        help="topology label recorded in each case's meta (e.g. the CI matrix spec)",
+    )
     args = parser.parse_args()
 
     if not IS_WINDOWS:
@@ -314,6 +397,22 @@ def main() -> int:
 
     cases: list[dict[str, Any]] = []
     index = 0
+    coverage_failures = 0
+    detect_failures = 0
+
+    def base_meta(monitor_index: int, phys: dict[str, int]) -> dict[str, Any]:
+        mon_scale = _monitor_scale(phys)
+        meta: dict[str, Any] = {
+            "resolution": resolution,
+            "monitor_index": monitor_index,
+            "monitors": len(monitors),
+            "monitor_rect": [phys["left"], phys["top"], phys["width"], phys["height"]],
+            "dpi_scale": round(mon_scale * 100) if mon_scale else None,
+            "source": "scenario",
+        }
+        if args.topology:
+            meta["topology"] = args.topology
+        return meta
 
     # --- present scenarios -------------------------------------------------
     for step in plan:
@@ -322,35 +421,47 @@ def main() -> int:
         scale: float = step["scale"]
         fx, fy = step["fx"], step["fy"]
 
+        phys = _match_physical(monitor, capture.screen_monitors)
         pil = _load_pil(args.assets / _TEMPLATE_ASSET[bt], scale)
         bg = _BG_COLORS[index % len(_BG_COLORS)]
-        img = _render_and_capture(root, monitor, pil, fx, fy, bg, capture, args.settle)
+        img = _render_and_capture(root, phys, pil, fx, fy, bg, capture, args.settle)
 
-        phys = _match_physical(monitor, capture.screen_monitors)
         point = _ground_truth_point(phys, fx, fy, capture.min_x, capture.min_y)
 
-        # tolerance ~ half the button's physical size + margin
-        scale_x = phys["width"] / monitor.width
+        # The window is physical-sized, so the button is drawn at its PIL size.
         pw, ph = pil.size
-        tol = int(0.5 * max(pw * scale_x, ph * scale_x) + 25)
+        tol = int(0.5 * max(pw, ph) + 25)
+        button_box = (
+            point[0] - pw // 2 - 2,
+            point[1] - ph // 2 - 2,
+            point[0] + pw // 2 + 2,
+            point[1] + ph // 2 + 2,
+        )
+        cover = _coverage(img, phys, capture.min_x, capture.min_y, bg, button_box)
+        if cover < _MIN_COVERAGE:
+            coverage_failures += 1
+            print(
+                f"[{index:03d}] mon{step['monitor_index']} COVERAGE {cover:.1%} < "
+                f"{_MIN_COVERAGE:.0%}: window did not cover {phys}; case skipped"
+            )
+            _save_png_unicode_safe(
+                args.out / f"{args.prefix}_{index:03d}_coverage_fail.png", img
+            )
+            index += 1
+            continue
 
         filename = f"{args.prefix}_{index:03d}.png"
         _save_png_unicode_safe(args.out / filename, img)
 
+        meta = base_meta(step["monitor_index"], phys)
+        meta.update({"scale": scale, "position": [fx, fy]})
         case = {
             "image": f"real/{filename}",
             "button_type": bt.value,
             "expect": "present",
             "point": [point[0], point[1]],
             "tolerance_px": tol,
-            "meta": {
-                "resolution": resolution,
-                "monitor_index": step["monitor_index"],
-                "monitors": len(monitors),
-                "scale": scale,
-                "position": [fx, fy],
-                "source": "scenario",
-            },
+            "meta": meta,
         }
         cases.append(case)
 
@@ -359,9 +470,12 @@ def main() -> int:
             res = detector.detect(img, bt)
             if res is None:
                 note = "  detect=MISS"
+                detect_failures += 1
             else:
                 err = ((res.x - point[0]) ** 2 + (res.y - point[1]) ** 2) ** 0.5
                 hit = "ok" if err <= tol else "OFF"
+                if hit == "OFF":
+                    detect_failures += 1
                 note = f"  detect={res.num_matches}m err={err:.0f}px({hit})"
         print(
             f"[{index:03d}] mon{step['monitor_index']} {bt.value:<10} "
@@ -372,11 +486,21 @@ def main() -> int:
     # --- negative scenarios ------------------------------------------------
     neg_types = [t.value for t in types][:2] or [ButtonType.VORTEX.value]
     for monitor_index, monitor in enumerate(target_monitors):
+        phys = _match_physical(monitor, capture.screen_monitors)
         for n in range(args.negatives):
             bg = _BG_COLORS[index % len(_BG_COLORS)]
             img = _render_and_capture(
-                root, monitor, None, 0.5, 0.5, bg, capture, args.settle
+                root, phys, None, 0.5, 0.5, bg, capture, args.settle
             )
+            cover = _coverage(img, phys, capture.min_x, capture.min_y, bg, None)
+            if cover < _MIN_COVERAGE:
+                coverage_failures += 1
+                print(
+                    f"[{index:03d}] mon{monitor_index} negative COVERAGE {cover:.1%}: "
+                    "case skipped"
+                )
+                index += 1
+                continue
             filename = f"{args.prefix}_{index:03d}.png"
             _save_png_unicode_safe(args.out / filename, img)
             absent_type = neg_types[n % len(neg_types)]
@@ -385,19 +509,30 @@ def main() -> int:
                     "image": f"real/{filename}",
                     "button_type": absent_type,
                     "expect": "absent",
-                    "meta": {
-                        "resolution": resolution,
-                        "monitor_index": monitor_index,
-                        "monitors": len(monitors),
-                        "source": "scenario",
-                    },
+                    "meta": base_meta(monitor_index, phys),
                 }
             )
-            print(f"[{index:03d}] mon{monitor_index} negative -> absent {absent_type}")
+            note = ""
+            if detector is not None and detector.detect(img, ButtonType(absent_type)):
+                note = "  detect=FALSE_POSITIVE"
+                detect_failures += 1
+            print(
+                f"[{index:03d}] mon{monitor_index} negative -> absent {absent_type}{note}"
+            )
             index += 1
 
     root.destroy()
     _write_cases(cases, args)
+
+    if coverage_failures:
+        print(
+            f"\n{coverage_failures} capture(s) failed the coverage check: the "
+            "window did not cover its physical monitor, so labels can't be trusted."
+        )
+        return _EXIT_COVERAGE
+    if args.strict and detect_failures:
+        print(f"\n--strict: {detect_failures} case(s) missed, off or false positive.")
+        return _EXIT_STRICT
     return 0
 
 

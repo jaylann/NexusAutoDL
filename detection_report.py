@@ -10,11 +10,16 @@ the scores to settle "improved detection" claims objectively.
 Cases whose button type / template / image is unavailable on the current
 branch are reported as skipped (same gating as the pytest suite), so the score
 only reflects cases this branch can actually run.
+
+``--source scenario`` scores only cases whose ``meta.source`` matches (e.g. the
+ones ``tools/generate_scenarios.py`` just produced on the display rig).
 """
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass, field
+from typing import Optional
 
 from models import AppConfig, ButtonType
 from services.button_detector import ButtonDetector
@@ -43,10 +48,20 @@ class TypeStats:
         return sum(self.errors) / len(self.errors) if self.errors else 0.0
 
 
-def run() -> int:
+def run(source: Optional[str] = None) -> int:
     cases = load_cases()
+    if source is not None:
+        cases = [c for c in cases if c.get("meta", {}).get("source") == source]
     if not cases:
-        print("No cases found in cases.json. Run: python -m tests._generate_synthetic")
+        if source:
+            print(
+                f"No cases with meta.source={source!r} in cases.json "
+                "(scenario cases come from tools/generate_scenarios.py --append-to-cases)."
+            )
+        else:
+            print(
+                "No cases found in cases.json. Run: python -m tests._generate_synthetic"
+            )
         return 1
 
     detector = ButtonDetector(ASSETS_PATH)
@@ -128,4 +143,8 @@ def _print_table(stats: dict[str, TypeStats], skipped: int) -> None:
 
 
 if __name__ == "__main__":
-    raise SystemExit(run())
+    _parser = argparse.ArgumentParser(description="Score detection fixtures.")
+    _parser.add_argument(
+        "--source", default=None, help="only cases whose meta.source matches"
+    )
+    raise SystemExit(run(_parser.parse_args().source))
