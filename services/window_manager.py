@@ -9,7 +9,13 @@ import time
 from typing import Optional
 
 from models import BoundingBox, BrowserType, Monitor
-from utils.platform import IS_WINDOWS, user32, win32api, win32gui
+from utils.platform import (
+    IS_WINDOWS,
+    ensure_dpi_awareness,
+    user32,
+    win32api,
+    win32gui,
+)
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -167,11 +173,17 @@ class WindowManager:
     @staticmethod
     def get_all_monitors() -> list[Monitor]:
         """
-        Get all available monitors.
+        Get all available monitors in physical pixels.
+
+        Makes the process per-monitor DPI aware first (``ensure_dpi_awareness``),
+        so the bounds share one coordinate space with ``mss`` capture,
+        ``GetWindowRect`` and ``SetCursorPos``. Without it, a scaled monitor
+        reports logical bounds (1920x1080 at 150 % -> 1280x720).
 
         Returns:
             List of Monitor objects
         """
+        ensure_dpi_awareness()
         raw_monitors = win32api.EnumDisplayMonitors(None, None)
         monitors: list[Monitor] = []
 

@@ -30,4 +30,51 @@ else:  # pragma: no cover - exercised implicitly on non-Windows hosts
     win32gui = mock_win32gui
     user32 = get_mock_user32().windll.user32
 
-__all__ = ["IS_WINDOWS", "win32api", "win32con", "win32gui", "user32"]
+# DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 (Windows 10 1703+).
+_PER_MONITOR_AWARE_V2 = -4
+_PROCESS_PER_MONITOR_DPI_AWARE = 2
+_dpi_awareness_requested = False
+
+
+def ensure_dpi_awareness() -> None:
+    """Make this process per-monitor DPI aware, once, before any geometry is read.
+
+    Every coordinate the app handles must be in physical pixels: ``mss``
+    captures physical pixels (and switches the process to per-monitor awareness
+    itself when ``ScreenCapture`` is created), and ``SetCursorPos`` /
+    ``SetWindowPos`` then expect physical pixels too. ``python.exe`` starts
+    DPI *unaware*, so anything read before that switch is virtualized: a
+    1920x1080 monitor at 150 % reports as 1280x720. Calling this first keeps
+    monitor bounds, window rects, capture and clicks in one coordinate space.
+
+    Idempotent and a no-op off Windows. Once awareness is fixed (by a manifest
+    or an earlier call) Windows rejects further changes; that is harmless.
+    """
+    global _dpi_awareness_requested
+    if not IS_WINDOWS or _dpi_awareness_requested:
+        return
+    _dpi_awareness_requested = True
+
+    windll = ctypes.windll
+    try:
+        set_context = windll.user32.SetProcessDpiAwarenessContext
+        set_context.argtypes = [ctypes.c_void_p]
+        if set_context(ctypes.c_void_p(_PER_MONITOR_AWARE_V2)):
+            return
+    except AttributeError:  # older than Windows 10 1703
+        pass
+    try:
+        # S_OK, or E_ACCESSDENIED when awareness is already fixed.
+        windll.shcore.SetProcessDpiAwareness(_PROCESS_PER_MONITOR_DPI_AWARE)
+    except (AttributeError, OSError):  # older than Windows 8.1
+        windll.user32.SetProcessDPIAware()
+
+
+__all__ = [
+    "IS_WINDOWS",
+    "ensure_dpi_awareness",
+    "win32api",
+    "win32con",
+    "win32gui",
+    "user32",
+]
