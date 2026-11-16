@@ -454,6 +454,17 @@ def main() -> int:
     index = 0
     coverage_failures = 0
     detect_failures = 0
+    # Machine-readable outcome of --verify, for the cross-layout report.
+    tally: dict[str, Any] = {
+        "present": 0,
+        "hit": 0,
+        "missed": 0,
+        "off": 0,
+        "negative_frames": 0,
+        "false_positives": 0,
+        "max_error_px": 0.0,
+        "tolerance_px": _TOLERANCE_PX,
+    }
 
     def idle_for(frame: Any) -> list[Any]:
         """Monitors to blank while ``frame`` shows the scenario."""
@@ -523,6 +534,7 @@ def main() -> int:
         if min_matches is not None:
             case["min_matches"] = min_matches
         cases.append(case)
+        tally["present"] += 1
 
         note = ""
         if detector is not None:
@@ -530,11 +542,16 @@ def main() -> int:
             if res is None:
                 note = "  detect=MISS"
                 detect_failures += 1
+                tally["missed"] += 1
             else:
                 err = ((res.x - point[0]) ** 2 + (res.y - point[1]) ** 2) ** 0.5
                 hit = "ok" if err <= _TOLERANCE_PX else "OFF"
                 if hit == "OFF":
                     detect_failures += 1
+                    tally["off"] += 1
+                else:
+                    tally["hit"] += 1
+                    tally["max_error_px"] = round(max(tally["max_error_px"], err), 1)
                 note = (
                     f"  detect={res.method} {res.num_matches}m err={err:.1f}px({hit})"
                 )
@@ -581,6 +598,8 @@ def main() -> int:
                     false_positives.append(absent_type.value)
 
             detect_failures += len(false_positives)
+            tally["negative_frames"] += 1
+            tally["false_positives"] += len(false_positives)
             note = (
                 f"  detect=FALSE_POSITIVE({', '.join(false_positives)})"
                 if false_positives
@@ -591,6 +610,12 @@ def main() -> int:
 
     root.destroy()
     _write_cases(cases, args)
+    if detector is not None:
+        tally["coverage_failures"] = coverage_failures
+        tally["button_types"] = len(types)
+        (args.out / f"{args.prefix}.verify.json").write_text(
+            json.dumps(tally, indent=2) + "\n", encoding="utf-8"
+        )
 
     if coverage_failures:
         print(

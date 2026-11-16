@@ -13,9 +13,18 @@ from typing import Any, ClassVar
 import numpy as np
 import pytest
 
+from models import ButtonType
 from tools.ci.display_report import check_app_view
 from tools.ci.topology import MonitorSpec, format_topology, match_rects, parse_topology
-from tools.e2e_click_check import logged_clicks, unseen_clicks
+from tools.e2e_click_check import (
+    IDLE_SCENES,
+    build_steps,
+    draw_scale,
+    judge_click,
+    logged_clicks,
+    summary_markdown,
+    unseen_clicks,
+)
 from tools.generate_scenarios import _coverage, _frame_coverage, _hex_to_rgb
 
 
@@ -189,3 +198,115 @@ class TestClickReconciliation:
         # The app clicked the same point twice; the target got it once.
         logged = [[100, 100], [100, 100]]
         assert unseen_clicks(logged, [[100, 100]]) == [[100, 100]]
+
+
+class TestClickJudgement:
+    RECT: ClassVar[list[int]] = [100, 200, 370, 238]  # 270x38, centre (235, 219)
+
+    def test_centre_click_is_ok(self) -> None:
+        assert judge_click(self.RECT, [235, 219], 4) == (True, True, [0, 0])
+
+    def test_inside_but_off_centre_is_not_ok(self) -> None:
+        # Hits the wide button, but 100 px from where it should have clicked.
+        inside, ok, offset = judge_click(self.RECT, [335, 219], 4)
+        assert (inside, ok, offset) == (True, False, [100, 0])
+
+    def test_tolerance_is_a_radius(self) -> None:
+        assert judge_click(self.RECT, [238, 222], 4)[1] is False  # 4.24 px away
+        assert judge_click(self.RECT, [235, 223], 4)[1] is True
+
+    def test_outside_is_a_miss(self) -> None:
+        inside, ok, _ = judge_click(self.RECT, [235, 190], 100)
+        assert (inside, ok) == (False, False)
+
+
+class TestDrawScale:
+    def test_150_percent_template_on_a_100_percent_monitor(self) -> None:
+        # Issue #13: the real button at 100 % is two thirds of the template.
+        assert draw_scale(ButtonType.VORTEX, 1.0, 1.0) == pytest.approx(2 / 3)
+
+    def test_template_scale_is_native_on_its_capture_scale(self) -> None:
+        assert draw_scale(ButtonType.VORTEX, 1.5, 1.0) == pytest.approx(1.0)
+        assert draw_scale(ButtonType.WABBAJACK, 1.0, 1.0) == pytest.approx(1.0)
+
+    def test_zoom_multiplies(self) -> None:
+        assert draw_scale(ButtonType.WEBSITE, 1.25, 1.5) == pytest.approx(1.25)
+
+
+class TestBuildSteps:
+    def test_web_covers_every_monitor_each_round(self) -> None:
+        steps = build_steps("web", monitor_count=2, primary=0, rounds=3)
+        buttons = [s for s in steps if s.kind == "web"]
+        assert [s.monitor for s in buttons] == [0, 1, 0, 1, 0, 1]
+        assert {s.button_type for s in buttons} == {
+            ButtonType.WEBSITE,
+            ButtonType.WABBAJACK,
+        }
+        assert [s.index for s in steps] == list(range(len(steps)))
+
+    def test_one_idle_scene_after_each_round(self) -> None:
+        steps = build_steps("web", monitor_count=1, primary=0, rounds=3)
+        assert [s.kind for s in steps] == ["web", "idle"] * 3
+        assert [s.scene for s in steps if s.kind == "idle"] == list(IDLE_SCENES)
+
+    def test_vortex_rounds_end_where_the_app_starts(self) -> None:
+        # Vortex button, then the website button on the primary, then idle:
+        # an idle scene between the two would strand the app mid-sequence.
+        steps = build_steps("vortex", monitor_count=2, primary=1, rounds=2)
+        assert [s.kind for s in steps] == ["vortex", "web", "idle"] * 2
+        assert all(s.monitor == 1 for s in steps if s.kind == "web")
+
+    def test_zoom_changes_per_round(self) -> None:
+        steps = build_steps("web", monitor_count=1, primary=0, rounds=3)
+        assert [s.zoom for s in steps if s.kind == "web"] == [1.0, 1.5, 1.1]
+
+
+class TestSummaryMarkdown:
+    def _summary(self, **phase: Any) -> dict[str, Any]:
+        base: dict[str, Any] = {
+            "mode": "web",
+            "steps": 1,
+            "ok": True,
+            "skipped": "",
+            "idle_scenes": ["blank", "lookalikes"],
+            "unseen_app_clicks": [],
+            "clicks": [
+                {
+                    "step": 0,
+                    "button_type": "website",
+                    "monitor": 0,
+                    "dpi_scale": 1.5,
+                    "draw_scale": 1.0,
+                    "offset": [0, -1],
+                    "latency": 1.4,
+                    "ok": True,
+                    "note": "",
+                    "click": [960, 540],
+                }
+            ],
+        }
+        base.update(phase)
+        return {
+            "monitors": [{"left": 0, "top": 0, "width": 1920, "height": 1080}],
+            "scales": [1.5],
+            "phases": [base],
+        }
+
+    def test_lists_buttons_and_idle_scenes(self) -> None:
+        text = summary_markdown(self._summary())
+        assert "1920x1080@0,0 150%" in text
+        assert "PASS, 1/1 buttons clicked on centre, 0 stray" in text
+        assert "idle scenes: blank, lookalikes" in text
+        assert "| 0 | website | 0 (150%) | x1.0 | [0, -1] | 1.4 | ok |" in text
+
+    def test_stray_click_is_listed(self) -> None:
+        stray = {"step": None, "click": [10, 20], "note": "stray:idle:busy"}
+        summary = self._summary(ok=False)
+        summary["phases"][0]["clicks"].append(stray)
+        text = summary_markdown(summary)
+        assert "FAIL" in text and "1 stray" in text
+        assert "STRAY at [10, 20] (stray:idle:busy)" in text
+
+    def test_skipped_phase(self) -> None:
+        text = summary_markdown(self._summary(skipped="vortex mode needs 2+ monitors"))
+        assert "skipped (vortex mode needs 2+ monitors)" in text

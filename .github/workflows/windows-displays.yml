@@ -121,3 +121,50 @@ jobs:
             tests/fixtures/detection/real/
             tests/fixtures/detection/cases.json
           if-no-files-found: warn
+
+  # One table for every layout, and the single check that says whether the rig
+  # passed: it fails when any layout failed or left no results behind.
+  report:
+    name: compatibility report
+    needs: displays
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: displays-*
+          path: rig-artifacts
+
+      - name: Build the compatibility table
+        id: table
+        run: python tools/ci/summarise_rig.py rig-artifacts --out compat-report.md
+
+      - name: Publish to the job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if [ -f compat-report.md ]; then
+            cat compat-report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No compatibility table: no layout uploaded results." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the table
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: compat-report
+          path: compat-report.md
+          if-no-files-found: warn
+
+      - name: Every layout must have passed
+        if: ${{ needs.displays.result != 'success' }}
+        run: |
+          echo "displays job result: ${{ needs.displays.result }}"
+          exit 1
