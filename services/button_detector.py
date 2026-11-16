@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -102,6 +103,10 @@ class ButtonDetector:
         self.assets_path = assets_path
         self.sift = cv2.SIFT_create()
         self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
+
+        # Per-frame caches, see _scene_for.
+        self._scene: tuple[Any, tuple[int, int, int, int], Any] | None = None
+        self._ncc_peaks: dict[int, tuple[Any]] = {}
 
         self.assets = self._load_assets()
         self._templates: dict[ButtonType, list[TemplateCandidate]] = (
@@ -596,18 +601,21 @@ class ButtonDetector:
         )
         return float(result.max())
 
-    def _match_ncc(
-        self,
-        template: TemplateCandidate,
-        scene_gray: npt.NDArray[np.uint8],
-        button_type: ButtonType,
-        offset_x: int,
-        offset_y: int,
-    ) -> DetectionResult | None:
-        """Multi-scale normalized cross-correlation fallback."""
+    def _best_ncc_peak(
+        self, template: TemplateCandidate, scene_gray: npt.NDArray[np.uint8]
+    ) -> tuple[float, tuple[int, int], float, int, int] | None:
+        """Strongest correlation peak of a template over the scale ladder.
+
+        The ladder is the expensive part of a miss (eight full-frame passes),
+        and two button types can share a picture, so the result is kept for
+        the frame being searched (see ``_scene_for``).
+        """
+        cached = self._ncc_peaks.get(id(template))
+        if cached is not None:
+            return cached[0]
+
         scene_h, scene_w = scene_gray.shape[:2]
         best: tuple[float, tuple[int, int], float, int, int] | None = None
-
         for scale in TM_SCALES:
             sw = max(1, round(template.width * scale))
             sh = max(1, round(template.height * scale))
@@ -619,6 +627,44 @@ class ButtonDetector:
             _, max_val, _, max_loc = cv2.minMaxLoc(result)
             if best is None or max_val > best[0]:
                 best = (float(max_val), max_loc, scale, sw, sh)
+
+        self._ncc_peaks[id(template)] = (best,)
+        return best
+
+    def _scene_for(
+        self, img: npt.NDArray[np.uint8], box: tuple[int, int, int, int]
+    ) -> tuple[npt.NDArray[np.uint8], npt.NDArray[np.uint8], Any, Any]:
+        """``(full_gray, gray, keypoints, descriptors)`` for a search box.
+
+        The scanner asks for several button types on one capture, and SIFT on
+        a full frame is the bulk of each call, so the features of the last
+        frame are kept. The frame is recognised by identity; the reference
+        held here keeps that identity from being handed to another array.
+        Callers must not modify a frame between calls.
+        """
+        cached = self._scene
+        if cached is not None and cached[0] is img and cached[1] == box:
+            return cached[2]
+
+        x1, y1, x2, y2 = box
+        full_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        gray = full_gray[y1:y2, x1:x2]
+        kps, des = self.sift.detectAndCompute(gray, mask=None)
+        scene = (full_gray, gray, kps, des)
+        self._scene = (img, box, scene)
+        self._ncc_peaks = {}
+        return scene
+
+    def _match_ncc(
+        self,
+        template: TemplateCandidate,
+        scene_gray: npt.NDArray[np.uint8],
+        button_type: ButtonType,
+        offset_x: int,
+        offset_y: int,
+    ) -> DetectionResult | None:
+        """Multi-scale normalized cross-correlation fallback."""
+        best = self._best_ncc_peak(template, scene_gray)
 
         if best is None or best[0] < TM_BAND_THRESHOLD:
             if best is not None:
@@ -637,6 +683,14 @@ class ButtonDetector:
                     f"gradient score {grad:.2f} (need {TM_GRAD_THRESHOLD})"
                 )
                 return None
+
+        ends_score = self._label_ends_score(template, scene_gray, px, py, scale)
+        if ends_score < END_NCC_THRESHOLD:
+            logger.debug(
+                f"{button_type}: NCC peak {peak:.2f} rejected, one end of the "
+                f"label scored {ends_score:.2f} (need {END_NCC_THRESHOLD})"
+            )
+            return None
         cx = px + sw / 2.0 + offset_x
         cy = py + sh / 2.0 + offset_y
 
@@ -704,12 +758,15 @@ class ButtonDetector:
 
         # Keypoints come from the search box only; the whole frame stays at
         # hand for the appearance check.
-        full_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        gray = full_gray[
-            offset_y : offset_y + img_to_search.shape[0],
-            offset_x : offset_x + img_to_search.shape[1],
-        ]
-        kps, des = self.sift.detectAndCompute(gray, mask=None)
+        full_gray, gray, kps, des = self._scene_for(
+            img,
+            (
+                offset_x,
+                offset_y,
+                offset_x + img_to_search.shape[1],
+                offset_y + img_to_search.shape[0],
+            ),
+        )
 
         best_result: DetectionResult | None = None
         if des is not None and len(kps) > 0:
