@@ -6,6 +6,7 @@
 // Putting one entry there opens the real dialog, drawn by Vortex itself,
 // without a Nexus account: the mod details are placeholders ("Mod with id 1"),
 // the buttons are the same. Nothing is downloaded and nothing is clicked.
+// Works from Vortex 1.13 (the older orange dialog) to 2.x.
 //
 // The rig needs to know where the button is without asking the detector it is
 // testing, so the extension writes the dialog's button rectangles (CSS pixels
@@ -23,16 +24,23 @@ var QUEUE_ENTRY = 'nxm://skyrimspecialedition/mods/1/files/1';
 var DIALOG_ID = 'free-user-dl-dialog';
 var REPORT_NAME = 'vortex-dialog.json';
 
+// 'pending', 'done', or 'failed: <why>'.
+var dispatched = 'pending';
+
 function rectOf(element) {
   var rect = element.getBoundingClientRect();
   return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
 }
 
 function report(outDir) {
+  // Vortex 2.x gives the dialog an id; 1.x does not, so fall back to whatever
+  // modal is open. If that is some other dialog, its buttons and text tell
+  // the rig what is in the way.
   var dialog = document.getElementById(DIALOG_ID);
+  var modal = dialog || document.querySelector('.modal.in, .modal.show');
   var buttons = [];
-  if (dialog) {
-    var found = dialog.querySelectorAll('button');
+  if (modal) {
+    var found = modal.querySelectorAll('button');
     for (var i = 0; i < found.length; i++) {
       buttons.push({
         id: found[i].id || '',
@@ -43,9 +51,11 @@ function report(outDir) {
   }
   var state = {
     time: Date.now(),
+    dispatched: dispatched,
     devicePixelRatio: window.devicePixelRatio,
     inner: [window.innerWidth, window.innerHeight],
-    dialog: dialog ? rectOf(dialog) : null,
+    dialogId: modal ? modal.id || '' : null,
+    dialogText: modal ? (modal.textContent || '').slice(0, 300) : null,
     buttons: buttons,
   };
   // Written under another name first: the rig reads the file while Vortex runs.
@@ -57,10 +67,15 @@ function report(outDir) {
 function main(context) {
   context.once(function () {
     setTimeout(function () {
-      context.api.store.dispatch({
-        type: 'ADD_FREEUSER_DLITEM',
-        payload: QUEUE_ENTRY,
-      });
+      try {
+        context.api.store.dispatch({
+          type: 'ADD_FREEUSER_DLITEM',
+          payload: QUEUE_ENTRY,
+        });
+        dispatched = 'done';
+      } catch (err) {
+        dispatched = 'failed: ' + (err && err.message ? err.message : err);
+      }
     }, DIALOG_DELAY_MS);
 
     var outDir = process.env.NEXUSAUTODL_RIG_OUT;

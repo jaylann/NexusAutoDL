@@ -15,6 +15,7 @@ from tools.ci.real_vortex_check import (
     settled_ticks,
     summary_line,
     target_button,
+    why_not_shown,
 )
 
 
@@ -59,6 +60,30 @@ class TestTargetButton:
         unpainted = _button("Download manually", 0, 0, "download-mod-button")
         unpainted["rect"] = {"left": 0, "top": 0, "right": 0, "bottom": 0}
         assert target_button(_report(unpainted)) is None
+
+
+class TestWhyNotShown:
+    def test_nothing_to_explain_while_the_button_is_there(self) -> None:
+        assert why_not_shown(NEW_DIALOG) is None
+
+    def test_another_dialog_is_named_by_its_buttons(self) -> None:
+        # Old Vortex without the .NET runtime stops at a start-up check.
+        blocked = _report(_button("Quit Vortex", 700, 400), _button("Fix", 800, 400))
+        assert why_not_shown(blocked) == (
+            "Vortex shows another dialog, with the buttons: Quit Vortex, Fix"
+        )
+
+    def test_a_failed_dispatch_is_reported(self) -> None:
+        report = {**_report(), "dispatched": "failed: store is not ready"}
+        assert why_not_shown(report) == (
+            "opening the dialog failed: store is not ready"
+        )
+
+    def test_no_report_at_all(self) -> None:
+        assert why_not_shown(None) == "Vortex's extension wrote no report"
+
+    def test_no_dialog_and_nothing_else_gives_no_reason(self) -> None:
+        assert why_not_shown({**_report(), "dispatched": "done"}) is None
 
 
 class TestExpectedCentre:

@@ -10,8 +10,11 @@ name: Real Vortex
 #
 # No Nexus account, no login, no download, no click.
 #
-# "latest" is the newest stable Vortex at run time: the nightly run is how a
-# Vortex update that changes the dialog gets noticed.
+# Three Vortex versions:
+#   2.10.1  pinned, the "Download manually" dialog
+#   1.13.7  pinned, the older dialog with the orange "Download" button
+#   latest  the newest stable release at run time: the nightly run is how a
+#           Vortex update that changes the dialog gets noticed
 
 on:
   workflow_dispatch:
@@ -47,12 +50,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        vortex: ["2.10.1", "latest"]
+        vortex: ["2.10.1", "1.13.7", "latest"]
         scale: [100, 125, 150]
         include:
           # SHA256 of vortex-setup-2.10.1.exe as published with the release.
           - vortex: "2.10.1"
             sha256: "01d62323acc37f0056a2752b82b26fa5992df818f4718f82ab3e3ea24d406030"
+          # 1.13.7 needs two things a hosted runner lacks. The .NET 6 desktop
+          # runtime: without it Vortex stops at a start-up check. And a GPU:
+          # Chromium's GPU process crashes until the app gives up ("GPU
+          # process isn't usable. Goodbye."), so it is kept in-process.
+          # The release carries no published hash; this is the hash of the
+          # installer as downloaded on 2026-11-16.
+          - vortex: "1.13.7"
+            sha256: "309859061f6113b4e5c7dd456be3c6df54ce9910212f6fc531b0db5a6204118d"
+            args: "--in-process-gpu"
+            dotnet6: true
     steps:
       - uses: actions/checkout@v4
 
@@ -73,6 +86,16 @@ jobs:
       - name: Check display state
         run: python tools/ci/display_report.py --out artifacts/report --expect "1920x1080@0,0:${{ matrix.scale }}"
 
+      - name: Install the .NET 6 runtimes
+        if: ${{ matrix.dotnet6 }}
+        shell: pwsh
+        run: |
+          $script = Join-Path $env:RUNNER_TEMP "dotnet-install.ps1"
+          Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile $script
+          & $script -Runtime dotnet -Channel 6.0 -InstallDir "C:\Program Files\dotnet"
+          & $script -Runtime windowsdesktop -Channel 6.0 -InstallDir "C:\Program Files\dotnet"
+          dotnet --list-runtimes
+
       - name: Install Vortex ${{ matrix.vortex }}
         id: install
         shell: pwsh
@@ -87,7 +110,9 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path artifacts/real-vortex | Out-Null
           $env:NEXUSAUTODL_RIG_OUT = (Resolve-Path artifacts/real-vortex).Path
-          Start-Process -FilePath "${{ steps.install.outputs.exe }}"
+          $launch = @{ FilePath = "${{ steps.install.outputs.exe }}" }
+          if ("${{ matrix.args }}") { $launch.ArgumentList = "${{ matrix.args }}".Split(" ") }
+          Start-Process @launch
           python tools/ci/real_vortex_check.py --out artifacts/real-vortex --label "Vortex ${{ steps.install.outputs.version }} at ${{ matrix.scale }} %"
 
       - name: Collect Vortex logs

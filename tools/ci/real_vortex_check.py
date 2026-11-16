@@ -69,6 +69,25 @@ def target_button(report: dict[str, Any] | None) -> dict[str, Any] | None:
     return None
 
 
+def why_not_shown(report: dict[str, Any] | None) -> str | None:
+    """What Vortex reports instead of the download dialog, if anything.
+
+    Old Vortex stops at a start-up check when the .NET runtime is missing,
+    for example; its dialog's buttons say so better than "not shown" does.
+    """
+    if not report:
+        return "Vortex's extension wrote no report"
+    if target_button(report) is not None:
+        return None
+    dispatched = str(report.get("dispatched", ""))
+    if dispatched.startswith("failed"):
+        return f"opening the dialog {dispatched}"
+    labels = [b["text"] for b in report.get("buttons", []) if b.get("text")]
+    if labels:
+        return "Vortex shows another dialog, with the buttons: " + ", ".join(labels)
+    return None
+
+
 def _has_area(rect: dict[str, float]) -> bool:
     return rect["right"] > rect["left"] and rect["bottom"] > rect["top"]
 
@@ -392,11 +411,16 @@ def main() -> int:
         args.tolerance,
         args.min_frames,
     )
+    last_report = _read_report(report_path)
+    if verdict["exit"] == EXIT_NOT_SHOWN:
+        why = why_not_shown(last_report)
+        if why:
+            verdict["reason"] += f"; {why}"
     summary = {
         "label": args.label,
         "awareness": awareness.value,
         "admin_dialog": dismissals,
-        "vortex_report": _read_report(report_path),
+        "vortex_report": last_report,
         "others_checked": others_checked,
         "others_fired": others_fired,
         "verdict": verdict,
