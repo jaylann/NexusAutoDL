@@ -65,6 +65,7 @@ from utils.platform import IS_WINDOWS
 _TEMPLATES: tuple[tuple[ButtonType, str, str], ...] = (
     (ButtonType.VORTEX, "VortexDownloadButtonNew.png", "new"),
     (ButtonType.VORTEX, "VortexDownloadButton.png", "legacy"),
+    (ButtonType.VORTEX, "VortexDownloadButtonLegacy100.png", "legacy"),
     (ButtonType.WEBSITE, "WebsiteDownloadButtonNew.png", "new"),
     (ButtonType.WEBSITE, "WebsiteDownloadButton.png", "legacy"),
     (ButtonType.WABBAJACK, "WabbajackDownloadButton.png", "new"),
@@ -255,6 +256,11 @@ def _monitor_scale(frame: Any) -> float | None:
         return None
 
 
+# Pictures the app only looks for at their own size or smaller: too small to
+# be found enlarged (see ``tests/_generate_synthetic.py``).
+_MAX_SCALE: dict[str, float] = {"VortexDownloadButtonLegacy100.png": 1.0}
+
+
 def _build_plan(
     templates: list[tuple[ButtonType, str, str]],
     frames: list[Any],
@@ -268,6 +274,8 @@ def _build_plan(
     for frame in frames:
         for bt, asset, generation in templates:
             for scale in scl:
+                if scale > _MAX_SCALE.get(asset, scale):
+                    continue
                 for fx, fy in pos:
                     plan.append(
                         {

@@ -70,6 +70,12 @@ sys.path.insert(0, str(ROOT))
 from models import ButtonType
 from utils.platform import IS_WINDOWS
 
+# Largest size a button is drawn at, relative to its picture. The detector
+# accepts fits between 0.4x and 2.2x of a picture (SCALE_RANGE); 2x is the
+# size this check holds the app to. Zoom is reduced where it would exceed it,
+# e.g. a 100 % capture on a 150 % monitor at 150 % zoom (2.25x).
+MAX_DRAW_SCALE = 2.0
+
 
 @dataclass(frozen=True)
 class TemplateInfo:
@@ -79,6 +85,9 @@ class TemplateInfo:
     asset: str
     capture_scale: float
     generation: str  # "new" or "legacy" UI design
+    # Largest size this picture is drawn at. Below MAX_DRAW_SCALE for a
+    # picture the app only looks for at its own size.
+    max_draw_scale: float = MAX_DRAW_SCALE
 
 
 # Capture scales are measured, not documented anywhere else: the real "Download
@@ -89,6 +98,16 @@ class TemplateInfo:
 VORTEX_TEMPLATES: tuple[TemplateInfo, ...] = (
     TemplateInfo(ButtonType.VORTEX, "VortexDownloadButtonNew.png", 1.5, "new"),
     TemplateInfo(ButtonType.VORTEX, "VortexDownloadButton.png", 1.5, "legacy"),
+    # The old button as a 100 % monitor shows it. Too small to be found
+    # enlarged (the app leaves larger renders to the 150 % picture above), so
+    # it is never drawn above its own size.
+    TemplateInfo(
+        ButtonType.VORTEX,
+        "VortexDownloadButtonLegacy100.png",
+        1.0,
+        "legacy",
+        max_draw_scale=1.0,
+    ),
 )
 # Everything the app accepts as the website's download button.
 WEB_TEMPLATES: tuple[TemplateInfo, ...] = (
@@ -114,11 +133,6 @@ _VORTEX_POSITIONS: tuple[tuple[float, float], ...] = (
 )
 # Browser zoom per round, on top of the monitor's own scale.
 _ZOOMS: tuple[float, ...] = (1.0, 1.5, 1.1)
-# Largest size a button is drawn at, relative to its picture. The detector
-# accepts fits between 0.4x and 2.2x of a picture (SCALE_RANGE); 2x is the
-# size this check holds the app to. Zoom is reduced where it would exceed it,
-# e.g. a 100 % capture on a 150 % monitor at 150 % zoom (2.25x).
-MAX_DRAW_SCALE = 2.0
 # Shown between rounds while the app must not click. ``blank`` is what the
 # startup period shows anyway, so it is not repeated here.
 IDLE_SCENES: tuple[str, ...] = ("lookalikes", "busy", "half-painted")
@@ -258,9 +272,9 @@ def draw_scale(template: TemplateInfo, monitor_scale: float, zoom: float) -> flo
 
     A template captured at 150 % shows a button 1.5x its 100 % size, so on a
     100 % monitor at 100 % zoom the real button is 1 / 1.5 of the template.
-    Capped at ``MAX_DRAW_SCALE``.
+    Capped at the picture's ``max_draw_scale``.
     """
-    return min(monitor_scale * zoom / template.capture_scale, MAX_DRAW_SCALE)
+    return min(monitor_scale * zoom / template.capture_scale, template.max_draw_scale)
 
 
 def judge_click(
@@ -281,8 +295,8 @@ def judge_click(
 def build_steps(mode: str, monitor_count: int, primary: int, rounds: int) -> list[Step]:
     """Button steps for ``mode``, with one idle scene after each round.
 
-    Templates cycle so every design the app knows gets clicked: with three
-    rounds, all three website pictures and both Vortex designs.
+    Templates cycle so every picture the app knows gets clicked: with three
+    rounds, all three website pictures and all three Vortex pictures.
     """
     steps: list[Step] = []
 

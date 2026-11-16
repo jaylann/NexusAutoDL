@@ -28,7 +28,12 @@ from tools.e2e_click_check import (
     summary_markdown,
     unseen_clicks,
 )
-from tools.generate_scenarios import _coverage, _frame_coverage, _hex_to_rgb
+from tools.generate_scenarios import (
+    _build_plan,
+    _coverage,
+    _frame_coverage,
+    _hex_to_rgb,
+)
 
 
 class TestParseTopology:
@@ -242,6 +247,35 @@ class TestDrawScale:
         # 150 % monitor, 150 % zoom, 100 % capture: 2.25x is past what the
         # detector accepts (2.2x), so the check stops at 2x.
         assert draw_scale(self.AT_100, 1.5, 1.5) == pytest.approx(2.0)
+
+    def test_the_small_vortex_picture_is_never_enlarged(self) -> None:
+        # 71x31 px: the app finds it at its own size only, so a 150 % monitor
+        # or a zoomed page must not blow it up.
+        small = next(t for t in VORTEX_TEMPLATES if t.max_draw_scale == 1.0)
+        assert small.asset == "VortexDownloadButtonLegacy100.png"
+        assert draw_scale(small, 1.0, 1.0) == pytest.approx(1.0)
+        assert draw_scale(small, 1.5, 1.5) == pytest.approx(1.0)
+
+
+class TestSweepPlan:
+    def test_the_small_vortex_picture_is_never_rendered_enlarged(self) -> None:
+        small = "VortexDownloadButtonLegacy100.png"
+        large = "VortexDownloadButton.png"
+        plan = _build_plan(
+            [
+                (ButtonType.VORTEX, small, "legacy"),
+                (ButtonType.VORTEX, large, "legacy"),
+            ],
+            ["frame"],
+            positions=1,
+            scales=4,
+        )
+        scales = {
+            asset: {step["scale"] for step in plan if step["asset"] == asset}
+            for asset in (small, large)
+        }
+        assert scales[small] == {1.0, 0.85}
+        assert scales[large] == {1.0, 1.25, 1.5, 0.85}
 
 
 class TestBuildSteps:
