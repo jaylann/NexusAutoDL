@@ -126,10 +126,18 @@ class MockWin32GUI:
 
     @staticmethod
     def SetWindowPos(
-        hwnd: int, after, x: int, y: int, w: int, h: int, flags: bool
+        hwnd: int, after, x: int, y: int, w: int, h: int, flags: int
     ) -> None:
+        # Honours the flags like the real call: SWP_NOSIZE keeps the window's
+        # size and SWP_NOMOVE its position. A mock that always applied both
+        # hid a call that passed SWP_NOSIZE by accident.
         title = state.title_for_handle(hwnd)
         if title is not None:
+            left, top, right, bottom = state.windows[title]
+            if flags & MockWin32Con.SWP_NOSIZE:
+                w, h = right - left, bottom - top
+            if flags & MockWin32Con.SWP_NOMOVE:
+                x, y = left, top
             state.windows[title] = (x, y, x + w, y + h)
         logger.debug(f"[MOCK] SetWindowPos: hwnd={hwnd} pos=({x},{y}) size=({w},{h})")
 
@@ -139,6 +147,9 @@ class MockWin32Con:
 
     MOUSEEVENTF_LEFTDOWN = 0x0002
     MOUSEEVENTF_LEFTUP = 0x0004
+    SWP_NOSIZE = 0x0001
+    SWP_NOMOVE = 0x0002
+    SWP_NOZORDER = 0x0004
 
 
 class MockUserDLL:
