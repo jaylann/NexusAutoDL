@@ -43,6 +43,7 @@ Run from the repo root:
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Callable
@@ -909,9 +910,43 @@ def merge_into_manifest(synthetic_cases: list[dict[str, Any]]) -> None:
     )
 
 
+# Written next to the images: what they were generated from.
+_STAMP_PATH = SYNTHETIC_DIR / "generated-from.txt"
+
+
+def _source_stamp() -> str:
+    """Fingerprint of everything the images depend on: this file, the assets."""
+    digest = hashlib.sha256(Path(__file__).read_bytes())
+    for asset in sorted(ASSETS_PATH.glob("*.png")):
+        digest.update(asset.name.encode())
+        digest.update(asset.read_bytes())
+    return digest.hexdigest()
+
+
+def ensure_fixtures() -> None:
+    """Regenerate the images unless they match this generator and all exist.
+
+    The images are gitignored, so a checkout keeps whatever an earlier
+    generator wrote. Checking only "is the folder empty" left new cases
+    skipped as "image missing" and changed images scored against new labels.
+    """
+    stamp = _source_stamp()
+    if _STAMP_PATH.exists() and _STAMP_PATH.read_text(encoding="utf-8") == stamp:
+        raw = json.loads(CASES_PATH.read_text(encoding="utf-8"))
+        cases = raw.get("cases", []) if isinstance(raw, dict) else raw
+        if all(
+            (FIXTURES_DIR / c["image"]).exists()
+            for c in cases
+            if str(c.get("image", "")).startswith("synthetic/")
+        ):
+            return
+    main()
+
+
 def main() -> None:
     cases = generate()
     merge_into_manifest(cases)
+    _STAMP_PATH.write_text(_source_stamp(), encoding="utf-8")
     print(f"Generated {len(cases)} synthetic cases -> {CASES_PATH}")
 
 
