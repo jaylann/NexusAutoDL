@@ -24,11 +24,13 @@ account name. For every image the other button types must stay silent.
 
 These are the independent ones: Vortex drew them, and the app's pictures of the
 button come from somewhere else. A hosted Windows runner installs the Vortex
-release, a small local extension (`tools/ci/real_vortex/` on the
-`spike/real-vortex-ci` branch) puts one entry into the queue Vortex shows its
-free-download dialog for, and the screen is captured through the app's own
+release, a small local extension puts one entry into the queue Vortex shows
+its free-download dialog for, and the screen is captured through the app's own
 capture pipeline. No Nexus account is involved, nothing is downloaded and
-nothing is clicked, which is why the dialog says "Mod with id 1".
+nothing is clicked, which is why the dialog says "Mod with id 1". The tooling
+is the real-Vortex check that comes with the display rig
+(`.github/workflows/real-vortex.yml`, `tools/ci/real_vortex/`); its artifacts
+hold new captures on every run.
 
 The runner's render matches a user's: the button cut from the 100 % capture is
 found in the issue #13 screenshot at the right pixel, same size (271x39 px).
@@ -62,8 +64,8 @@ A known gap is reported as an expected failure and listed by
 
 ## Not covered by a real capture
 
-- Old Vortex (1.x) from a clean install: it closes itself on the runner before
-  the dialog can be shown.
+- Old Vortex (1.x) from a clean install: on the runner its window stays blank
+  and it exits before the dialog can be shown.
 - Vortex scaled by its own zoom setting, other themes, other languages.
 - Any website button in a real browser.
 
