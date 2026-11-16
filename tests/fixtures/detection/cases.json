@@ -304,6 +304,410 @@
       }
     },
     {
+      "image": "real/vortex_1.13.7_dialog_100.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        534,
+        243
+      ],
+      "tolerance_px": 6,
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_100",
+        "resolution": "610x347",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_100.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_100",
+        "resolution": "610x347",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_100.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_100",
+        "resolution": "610x347",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_100.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_100",
+        "resolution": "610x347",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_100.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_100",
+        "resolution": "610x347",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_100.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_100",
+        "resolution": "610x347",
+        "scale": 1.0,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_125.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        668,
+        303
+      ],
+      "tolerance_px": 6,
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_125",
+        "resolution": "763x431",
+        "scale": 1.25,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_125.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_125",
+        "resolution": "763x431",
+        "scale": 1.25,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_125.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_125",
+        "resolution": "763x431",
+        "scale": 1.25,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_125.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_125",
+        "resolution": "763x431",
+        "scale": 1.25,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_125.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_125",
+        "resolution": "763x431",
+        "scale": 1.25,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_125.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_125",
+        "resolution": "763x431",
+        "scale": 1.25,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_150.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        802,
+        364
+      ],
+      "tolerance_px": 6,
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_150",
+        "resolution": "916x518",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_150.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_150",
+        "resolution": "916x518",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_150.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_150",
+        "resolution": "916x518",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_150.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_150",
+        "resolution": "916x518",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_150.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_150",
+        "resolution": "916x518",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_dialog_150.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_dialog_150",
+        "resolution": "916x518",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43917740227); button centre as Vortex reports it"
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_frame_150.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        1301,
+        416
+      ],
+      "tolerance_px": 6,
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_frame_150",
+        "resolution": "1920x1080",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, the whole monitor as the app captured it (run 43917740227); button centre as Vortex reports it. The dimmed 'Go Premium' button top left is a lookalike in the same frame."
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_frame_150.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_frame_150",
+        "resolution": "1920x1080",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, the whole monitor as the app captured it (run 43917740227); button centre as Vortex reports it. The dimmed 'Go Premium' button top left is a lookalike in the same frame."
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_frame_150.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_frame_150",
+        "resolution": "1920x1080",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, the whole monitor as the app captured it (run 43917740227); button centre as Vortex reports it. The dimmed 'Go Premium' button top left is a lookalike in the same frame."
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_frame_150.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_frame_150",
+        "resolution": "1920x1080",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, the whole monitor as the app captured it (run 43917740227); button centre as Vortex reports it. The dimmed 'Go Premium' button top left is a lookalike in the same frame."
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_frame_150.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_frame_150",
+        "resolution": "1920x1080",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, the whole monitor as the app captured it (run 43917740227); button centre as Vortex reports it. The dimmed 'Go Premium' button top left is a lookalike in the same frame."
+      }
+    },
+    {
+      "image": "real/vortex_1.13.7_frame_150.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_1.13.7_frame_150",
+        "resolution": "1920x1080",
+        "scale": 1.5,
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "app_version": "1.13.7",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 1.13.7 on a GitHub-hosted Windows runner, the whole monitor as the app captured it (run 43917740227); button centre as Vortex reports it. The dimmed 'Go Premium' button top left is a lookalike in the same frame."
+      }
+    },
+    {
       "image": "real/issue23_old_vortex.png",
       "button_type": "vortex",
       "expect": "present",

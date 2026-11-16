@@ -12,6 +12,10 @@ They are listed in `../cases.json` with `meta.source == "real"`.
 | `vortex_2.10.1_dialog_100.png` | Vortex 2.10.1 on a CI runner | "Download mod" dialog at 100 % scaling | found, 0.5 px off centre |
 | `vortex_2.10.1_dialog_125.png` | same | the dialog at 125 % | found, 1.5 px off centre |
 | `vortex_2.10.1_dialog_150.png` | same | the dialog at 150 % | found, 0.7 px off centre |
+| `vortex_1.13.7_dialog_100.png` | Vortex 1.13.7 on a CI runner | the older dialog (orange "Download") at 100 % | found, 0.5 px off centre |
+| `vortex_1.13.7_dialog_125.png` | same | the older dialog at 125 % | found, 1 px off centre |
+| `vortex_1.13.7_dialog_150.png` | same | the older dialog at 150 % | found, 1 px off centre |
+| `vortex_1.13.7_frame_150.png` | same | the whole monitor at 150 %, with a dimmed "Go Premium" button in the corner | found, 1 px off centre |
 | `issue23_old_vortex.png` | issue #23 | Vortex's older free-download dialog (orange "Download"), 1366x768 monitor at 100 % | found, 1 px off centre |
 | `issue23_go_premium.png` | issue #23 | Vortex's own "Go Premium" advert from the same screenshot | nothing may fire |
 | `issue13_new_vortex_dialog.png` | issue #13 | "Download mod" dialog at 100 %, debug box drawn through the button | known gap |
@@ -20,10 +24,11 @@ They are listed in `../cases.json` with `meta.source == "real"`.
 Each image is cropped to the Vortex dialog (or the advert): no desktop, no
 account name. For every image the other button types must stay silent.
 
-### The Vortex 2.10.1 captures
+### The captures from a running Vortex
 
 These are the independent ones: Vortex drew them, and the app's pictures of the
-button come from somewhere else. A hosted Windows runner installs the Vortex
+button come from somewhere else. Two versions: 2.10.1 with the "Download mod"
+dialog, and 1.13.7 with the older dialog that has the orange "Download". A hosted Windows runner installs the Vortex
 release, a small local extension puts one entry into the queue Vortex shows
 its free-download dialog for, and the screen is captured through the app's own
 capture pipeline. No Nexus account is involved, nothing is downloaded and
@@ -35,17 +40,29 @@ hold new captures on every run.
 The runner's render matches a user's: the button cut from the 100 % capture is
 found in the issue #13 screenshot at the right pixel, same size (271x39 px).
 
-The 125 % capture is why `MIN_INLIER_RATIO` is 0.2. The dialog says "download"
-five times, which splits the matches; the fit on the real button was thrown out
-at the earlier floor of 0.5.
+The 2.10.1 capture at 125 % is why `MIN_INLIER_RATIO` is 0.2. The dialog says
+"download" five times, which splits the matches; the fit on the real button was
+thrown out at the earlier floor of 0.5.
+
+The 1.13.7 captures settle what the screenshot from issue #23 could not: the
+picture cut from that screenshot finds the button a freshly installed Vortex
+draws at 100 %. They also caught a regression on the day it was made. At 150 %
+the template search found the button and the label check then rejected it by a
+hair, because the search's size steps are 9 % apart and the label was compared
+a little too small. It is now compared at several sizes around the match
+(`TM_REFINE_FACTORS`). That miss only happens on the whole monitor frame, where
+the keypoint path falls one match short, so the frame itself is a case; in the
+dialog crop the button is found either way. For these cases the expected point
+is the centre of the button as Vortex reports it, not a measurement in the
+image.
 
 ### The issue screenshots
 
-- **The old dialog's case is not independent of its picture.**
+- **The old dialog's case from #23 is not independent of its picture.**
   `assets/VortexDownloadButtonLegacy100.png` was cut from that same screenshot.
-  The case shows the button is picked out of its real dialog, next to three
-  other orange buttons, and that nothing else fires. It does not show that
-  another user's Vortex draws the same pixels.
+  The case shows the button is picked out of a user's real dialog, next to
+  three other orange buttons, and that nothing else fires. That another Vortex
+  draws the same pixels is what the 1.13.7 capture at 100 % shows.
 - `issue23_go_premium.png` is there because the detector matched it: an orange
   button with white text the size of "Understood!" and of the old "Download".
   The template search took it for both until it compared the label on its own
@@ -64,8 +81,8 @@ A known gap is reported as an expected failure and listed by
 
 ## Not covered by a real capture
 
-- Old Vortex (1.x) from a clean install: on the runner its window stays blank
-  and it exits before the dialog can be shown.
+- Vortex versions other than 1.13.7 and 2.10.1, apart from the newest stable
+  one the real-Vortex check installs on every run.
 - Vortex scaled by its own zoom setting, other themes, other languages.
 - Any website button in a real browser.
 
