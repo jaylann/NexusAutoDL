@@ -7,6 +7,7 @@ from __future__ import annotations
 from loguru import logger
 
 from models import AppConfig, Monitor
+from utils.dpi import CoordinatesScaledError
 from utils.platform import IS_WINDOWS
 
 
@@ -31,6 +32,12 @@ def run(config: AppConfig, simulate: bool) -> None:
     else:
         from services.scanner import Scanner
         from services.window_manager import WindowManager
+
+        # Before anything is captured or clicked: with scaled coordinates
+        # every click would be off by the monitor's scale factor.
+        scaled = WindowManager.scaled_monitors()
+        if scaled:
+            raise CoordinatesScaledError(scaled)
 
         monitors: list[Monitor] = WindowManager.get_all_monitors()
         logger.info(f"📺 Detected {len(monitors)} monitor(s)")

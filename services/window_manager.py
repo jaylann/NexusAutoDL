@@ -167,6 +167,34 @@ class WindowManager:
         return bbox
 
     @staticmethod
+    def scaled_monitors() -> list[str]:
+        """Monitors whose bounds Windows reports scaled to this process.
+
+        Compares each monitor's rect, as this process sees it, with the display
+        mode the monitor is really in. The two are equal once the process is
+        per-monitor DPI aware. They differ when Windows holds the process in
+        another mode, which a high-DPI compatibility override on python.exe
+        does and the process cannot undo.
+
+        Returns:
+            One description per affected monitor; empty when all agree
+        """
+        ensure_dpi_awareness()
+
+        problems: list[str] = []
+        for handle, _, rect in win32api.EnumDisplayMonitors(None, None):
+            device = win32api.GetMonitorInfo(handle)["Device"]
+            mode = win32api.EnumDisplaySettings(device, win32con.ENUM_CURRENT_SETTINGS)
+            reported = (rect[2] - rect[0], rect[3] - rect[1])
+            actual = (mode.PelsWidth, mode.PelsHeight)
+            if reported != actual:
+                problems.append(
+                    f"{device} is {actual[0]}x{actual[1]} but reported as "
+                    f"{reported[0]}x{reported[1]}"
+                )
+        return problems
+
+    @staticmethod
     def get_all_monitors() -> list[Monitor]:
         """
         Get all available monitors (physical pixels; primary first).

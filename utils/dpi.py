@@ -39,6 +39,26 @@ _OS_SYSTEM_AWARE = 1
 _OS_PER_MONITOR_AWARE = 2
 
 
+class CoordinatesScaledError(RuntimeError):
+    """Windows reports monitor bounds scaled to this process.
+
+    Raised at startup instead of running: with scaled coordinates every click
+    would be off by the monitor's scale factor.
+    """
+
+    def __init__(self, monitors: list[str]) -> None:
+        self.monitors = monitors
+        details = "\n".join(f"  {monitor}" for monitor in monitors)
+        super().__init__(
+            "Windows is scaling this program's coordinates, so clicks would land "
+            "in the wrong place:\n"
+            f"{details}\n"
+            "A high-DPI compatibility setting on python.exe does this. Remove it "
+            "(python.exe > Properties > Compatibility > Change high DPI settings, "
+            "untick the override) and start again."
+        )
+
+
 class DpiAwareness(str, Enum):
     """Achieved process DPI awareness level."""
 

@@ -37,6 +37,9 @@ class MockDisplayState:
     )
     cursor: tuple[int, int] = _DEFAULT_CURSOR
     events: list[tuple] = field(default_factory=list)
+    # Real display mode per monitor index, where it differs from the reported
+    # rect: what a process sees when Windows scales its coordinates.
+    display_modes: dict[int, tuple[int, int]] = field(default_factory=dict)
 
     def title_for_handle(self, hwnd: int) -> str | None:
         titles = list(self.windows)
@@ -57,12 +60,14 @@ def configure(
     monitors: list[tuple[int, int, int, int]] | None = None,
     windows: dict[str, tuple[int, int, int, int]] | None = None,
     cursor: tuple[int, int] = _DEFAULT_CURSOR,
+    display_modes: dict[int, tuple[int, int]] | None = None,
 ) -> None:
     """Point the mocks at a specific display layout (for tests)."""
     state.monitors = list(monitors) if monitors is not None else list(_DEFAULT_MONITORS)
     state.windows = dict(windows) if windows is not None else dict(_DEFAULT_WINDOWS)
     state.cursor = cursor
     state.events = []
+    state.display_modes = dict(display_modes or {})
 
 
 def reset() -> None:
@@ -74,6 +79,14 @@ def send_input_mouse(flags: int) -> None:
     """Record a button event at the current cursor position."""
     state.events.append(("mouse", flags, state.cursor))
     logger.debug(f"[MOCK] send_input_mouse: flags={flags} at {state.cursor}")
+
+
+@dataclass(frozen=True)
+class _MockDevMode:
+    """The two DEVMODE fields the app reads."""
+
+    PelsWidth: int
+    PelsHeight: int
 
 
 class MockWin32API:
@@ -98,7 +111,22 @@ class MockWin32API:
     def EnumDisplayMonitors(
         hdc, rect
     ) -> list[tuple[int, int, tuple[int, int, int, int]]]:
-        return [(0, 0, monitor) for monitor in state.monitors]
+        # The first item is the monitor handle; here it is the monitor's index.
+        return [(index, 0, monitor) for index, monitor in enumerate(state.monitors)]
+
+    @staticmethod
+    def GetMonitorInfo(handle: int) -> dict[str, object]:
+        return {
+            "Monitor": state.monitors[handle],
+            "Device": f"\\\\.\\DISPLAY{handle + 1}",
+        }
+
+    @staticmethod
+    def EnumDisplaySettings(device: str, mode: int) -> _MockDevMode:
+        index = int(device.rsplit("DISPLAY", 1)[1]) - 1
+        left, top, right, bottom = state.monitors[index]
+        width, height = state.display_modes.get(index, (right - left, bottom - top))
+        return _MockDevMode(PelsWidth=width, PelsHeight=height)
 
 
 class MockWin32GUI:
@@ -147,6 +175,7 @@ class MockWin32Con:
 
     MOUSEEVENTF_LEFTDOWN = 0x0002
     MOUSEEVENTF_LEFTUP = 0x0004
+    ENUM_CURRENT_SETTINGS = -1
     SWP_NOSIZE = 0x0001
     SWP_NOMOVE = 0x0002
     SWP_NOZORDER = 0x0004

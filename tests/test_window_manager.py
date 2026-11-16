@@ -88,3 +88,18 @@ def test_position_vortex_stays_put_when_only_the_primary_is_scanned() -> None:
     manager = _manager("left_of_primary")
     manager.position_vortex(scanned=[manager.desktop.primary])
     assert mock_win32.state.windows == before
+
+
+def test_scaled_monitors_is_empty_when_bounds_are_physical() -> None:
+    assert WindowManager.scaled_monitors() == []
+
+
+def test_scaled_monitors_names_a_monitor_windows_reports_scaled() -> None:
+    # Issue #23's primary: 1920x1080 at 150 %, seen by an unaware process.
+    mock_win32.configure(
+        monitors=[(0, 0, 1280, 720), (1920, 0, 3286, 768)],
+        display_modes={0: (1920, 1080)},
+    )
+    assert WindowManager.scaled_monitors() == [
+        "\\\\.\\DISPLAY1 is 1920x1080 but reported as 1280x720"
+    ]

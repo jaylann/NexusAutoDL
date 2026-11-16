@@ -377,7 +377,7 @@ python main.py --help
 - Windows refused per-monitor DPI awareness for the process. The usual reason is a compatibility setting on `python.exe` (Properties → Compatibility → "Override high DPI scaling behavior"), which older versions of this README recommended
 
 **Solutions:**
-1. NexusAutoDL declares per-monitor DPI awareness itself at startup, so remove any high-DPI compatibility override on `python.exe`. The log (`nexus_autodl.log`) has a `Process DPI awareness` line: `per_monitor_v2` or `per_monitor` is right. `system` misplaces clicks on monitors scaled differently from the primary, `unaware` on any scaled monitor.
+1. NexusAutoDL declares per-monitor DPI awareness itself at startup, so remove any high-DPI compatibility override on `python.exe`. If Windows still scales the program's coordinates, it refuses to start (exit code 2) and names the affected monitor instead of clicking in the wrong place. The log (`nexus_autodl.log`) has a `Process DPI awareness` line: `per_monitor_v2` or `per_monitor` is right. `system` misplaces clicks on monitors scaled differently from the primary, `unaware` on any scaled monitor.
 2. Increase `--click-delay` to ensure pages load:
    ```bash
    python main.py --click-delay 3.0
