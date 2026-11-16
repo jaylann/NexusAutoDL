@@ -9,11 +9,14 @@ import click
 
 from app import run as run_app
 from models import AppConfig, BrowserType
-from utils.dpi import ensure_dpi_awareness
+from utils.dpi import CoordinatesScaledError, ensure_dpi_awareness
 from utils.logger import configure_logging, get_logger
 from utils.platform import IS_WINDOWS
 
 logger = get_logger(__name__)
+
+# Exit code when Windows scales the process's coordinates (see utils.dpi).
+EXIT_COORDINATES_SCALED = 2
 
 
 @click.command()
@@ -132,7 +135,11 @@ def main(
 
     # Run scanner
     logger.info("🚀 Starting NexusAutoDL")
-    run_app(config, simulate=effective_simulation)
+    try:
+        run_app(config, simulate=effective_simulation)
+    except CoordinatesScaledError as exc:
+        logger.error(str(exc))
+        raise SystemExit(EXIT_COORDINATES_SCALED) from exc
 
 
 if __name__ == "__main__":
