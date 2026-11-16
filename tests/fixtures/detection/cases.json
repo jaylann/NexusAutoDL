@@ -1,6 +1,309 @@
 {
   "cases": [
     {
+      "image": "real/vortex_2.10.1_dialog_100.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        184,
+        382
+      ],
+      "tolerance_px": 6,
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_100",
+        "resolution": "700x491",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_100.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_100",
+        "resolution": "700x491",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_100.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_100",
+        "resolution": "700x491",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_100.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_100",
+        "resolution": "700x491",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_100.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_100",
+        "resolution": "700x491",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_100.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_100",
+        "resolution": "700x491",
+        "scale": 1.0,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 100 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_125.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        230,
+        475
+      ],
+      "tolerance_px": 6,
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_125",
+        "resolution": "875x611",
+        "scale": 1.25,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_125.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_125",
+        "resolution": "875x611",
+        "scale": 1.25,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_125.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_125",
+        "resolution": "875x611",
+        "scale": 1.25,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_125.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_125",
+        "resolution": "875x611",
+        "scale": 1.25,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_125.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_125",
+        "resolution": "875x611",
+        "scale": 1.25,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_125.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_125",
+        "resolution": "875x611",
+        "scale": 1.25,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 125 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_150.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        244,
+        598
+      ],
+      "tolerance_px": 6,
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_150",
+        "resolution": "923x759",
+        "scale": 1.5,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_150.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_150",
+        "resolution": "923x759",
+        "scale": 1.5,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_150.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_150",
+        "resolution": "923x759",
+        "scale": 1.5,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_150.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_150",
+        "resolution": "923x759",
+        "scale": 1.5,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_150.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_150",
+        "resolution": "923x759",
+        "scale": 1.5,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
+      "image": "real/vortex_2.10.1_dialog_150.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "vortex_2.10.1_dialog_150",
+        "resolution": "923x759",
+        "scale": 1.5,
+        "ui_generation": "new",
+        "app": "vortex",
+        "app_version": "2.10.1",
+        "display": "1920x1080 at 150 %",
+        "origin": "Vortex 2.10.1 on a GitHub-hosted Windows runner, dialog opened by tools/ci/real_vortex, cropped to the dialog (run 43907096335)"
+      }
+    },
+    {
       "image": "real/issue23_old_vortex.png",
       "button_type": "vortex",
       "expect": "present",
@@ -114,7 +417,7 @@
         "display": "2560x1440 at 100 %",
         "origin": "GitHub issue #13, annotated screenshot cropped to the Vortex dialog"
       },
-      "known_gap": "The pictures of 'Download manually' are 150 % captures. Shrunk to two thirds they do not match text Windows rendered at 100 %. Needs a picture captured at 100 %."
+      "known_gap": "The app's debug box is drawn through the button in this screenshot. The same dialog captured without it at 100 % is found (real/vortex_2.10.1_dialog_100.png)."
     },
     {
       "image": "real/issue13_new_vortex_dialog.png",
@@ -210,7 +513,7 @@
         "display": "unknown resolution at 100 %",
         "origin": "GitHub issue #13, debug frame crop as posted (JPEG)"
       },
-      "known_gap": "The pictures of 'Download manually' are 150 % captures. Shrunk to two thirds they do not match text Windows rendered at 100 %. Needs a picture captured at 100 %."
+      "known_gap": "The app's debug box is drawn through the button in this screenshot. The same dialog captured without it at 100 % is found (real/vortex_2.10.1_dialog_100.png)."
     },
     {
       "image": "real/issue13_new_vortex_crop.png",

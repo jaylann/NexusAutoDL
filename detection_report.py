@@ -18,10 +18,10 @@ actually run.
 ``--source scenario`` scores only cases whose ``meta.source`` matches (e.g. the
 ones ``tools/generate_scenarios.py`` just produced on the display rig).
 
-Cases marked ``known_gap`` are buttons the detector does not find yet. They
-are listed on their own and left out of the recall, so the score stays a
-regression gate, but a detection in the wrong place there counts as a false
-positive.
+Cases marked ``known_gap`` are buttons the detector does not find, each with
+its reason in the manifest. They are listed on their own and left out of the
+recall, so the score stays a regression gate, but a detection in the wrong
+place there counts as a false positive.
 """
 
 from __future__ import annotations
@@ -161,11 +161,11 @@ def run(fail_under: float | None = None, source: str | None = None) -> int:
     print("By UI generation:")
     _print_table(by_generation)
     print()
-    print("By source (real = cut from a user's screenshot):")
+    print("By source (real = a screenshot of the real app):")
     _print_table(by_source)
     if gaps:
         print()
-        print("Known gaps (real buttons not found yet, not part of the score):")
+        print("Known gaps (not part of the score, reasons in cases.json):")
         for image, type_name, outcome in gaps:
             print(f"  {image:<44}{type_name:<10}{outcome}")
 

@@ -102,8 +102,10 @@ def skip_reason(
 def known_gap(case: dict[str, Any]) -> str | None:
     """Why a present-case is known not to be detected yet, or None.
 
-    A known gap is a button the detector misses today. It stays in the
-    manifest so the miss is visible and so a wrong click there still fails:
+    A known gap is a button the detector misses today, for the reason the
+    case gives (a picture that is missing, or an image with something drawn
+    over the button). It stays in the manifest so the miss is visible and so
+    a wrong click there still fails:
     the only accepted outcome is "nothing detected". Once the button is found,
     the marker has to be removed (the test fails until it is).
     """
