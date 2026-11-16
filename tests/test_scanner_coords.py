@@ -73,6 +73,7 @@ def test_scan_iteration_covers_all_monitors(scanner) -> None:
 def test_vortex_search_skips_frames_without_the_window(scanner) -> None:
     frames = scanner.screen_capture.capture_frames()
     primary = next(c for c in frames if c.frame.is_primary)
-    # Vortex sits on the left monitor; the primary frame must be skipped
-    # (returns False without ever consulting the detector).
-    assert scanner._handle_vortex_state(primary, iteration=1) is False
+    # Vortex sits on the left monitor; given only the primary frame there is
+    # nothing to search, and the status says so.
+    assert scanner._handle_vortex_state([primary], iteration=1) is False
+    assert scanner.status.current_action == "Vortex window is not on a scanned monitor"

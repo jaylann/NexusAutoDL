@@ -80,3 +80,11 @@ def test_raises_off_windows(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(wm_module, "IS_WINDOWS", False)
     with pytest.raises(RuntimeError, match="only available on Windows"):
         WindowManager(VirtualDesktop.from_mss_monitors(LAYOUTS["single"]))
+
+
+def test_position_vortex_stays_put_when_only_the_primary_is_scanned() -> None:
+    # --force-primary: moving Vortex to a secondary would hide it from the app.
+    before = dict(mock_win32.state.windows)
+    manager = _manager("left_of_primary")
+    manager.position_vortex(scanned=[manager.desktop.primary])
+    assert mock_win32.state.windows == before

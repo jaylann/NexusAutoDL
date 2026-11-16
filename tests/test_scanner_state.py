@@ -141,3 +141,16 @@ def test_website_checked_before_wabbajack(make_scanner) -> None:
 
     assert scanner.status.clicks_count == 1
     assert scanner.status.detections[0].button_type == ButtonType.WEBSITE
+
+
+def test_vortex_window_off_every_scanned_monitor_is_reported(make_scanner) -> None:
+    # Minimised windows report a rect far outside the desktop.
+    scanner, stub = make_scanner(vortex=True)
+    mock_win32.configure(windows={"Vortex": (-32000, -32000, -31840, -31972)})
+    stub.responses[ButtonType.VORTEX] = _detection(ButtonType.VORTEX)
+
+    scanner.scan_loop(max_iterations=2)
+
+    assert scanner.status.current_action == "Vortex window is not on a scanned monitor"
+    assert stub.calls == []
+    assert scanner.status.clicks_count == 0

@@ -88,8 +88,14 @@ class WindowManager:
 
         logger.info(f"{browser.value} positioned successfully")
 
-    def position_vortex(self) -> None:
-        """Position Vortex window on the first secondary monitor."""
+    def position_vortex(self, scanned: list[MonitorFrame] | None = None) -> None:
+        """Position Vortex on the first secondary monitor that is scanned.
+
+        Args:
+            scanned: Monitors the app captures; all of them when None. With
+                --force-primary that is only the primary, and moving Vortex to
+                a secondary would put it where the app never looks.
+        """
         vortex_handle: int = user32.FindWindowW(None, "Vortex")
 
         if vortex_handle == 0:
@@ -99,10 +105,14 @@ class WindowManager:
         logger.info("Found Vortex window")
 
         secondaries = self.desktop.secondaries
-        if secondaries:
-            self._place_window(vortex_handle, secondaries[0])
-
-        logger.info("Vortex positioned successfully")
+        targets = [f for f in secondaries if scanned is None or f in scanned]
+        if targets:
+            self._place_window(vortex_handle, targets[0])
+            logger.info("Vortex positioned successfully")
+        elif secondaries:
+            logger.info(
+                "Vortex left where it is: no secondary monitor is being scanned"
+            )
 
     def position_window_by_title(self, title_substr: str) -> None:
         """
