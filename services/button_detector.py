@@ -33,6 +33,14 @@ RANSAC_CONFIDENCE = 0.995
 # The scale window extends slightly past the rendered-scale extremes (0.65-2.0
 # in the benchmark) so a boundary fit is not rejected by rounding.
 MIN_INLIER_RATIO = 0.5
+
+# Share of the template's keypoint width the inliers must span. Text that only
+# starts like the label fits perfectly and looks right where it overlaps: the
+# dialog holding Vortex's "Download manually" button is titled "Download mod",
+# and its "Download m" was accepted as the button. Such a fit covers under half
+# of the label (0.46 and 0.24 on the real screenshots from issue #13), while
+# true fits measure >= 0.67 across the benchmark.
+MIN_INLIER_SPAN = 0.6
 SCALE_RANGE = (0.4, 2.2)
 MAX_ROTATION_DEG = 5.0
 
@@ -246,6 +254,18 @@ class ButtonDetector:
         return scale, rotation_deg
 
     @staticmethod
+    def _inlier_span(
+        template: TemplateCandidate, inlier_pts: npt.NDArray[np.float32]
+    ) -> float:
+        """Horizontal share of the template's keypoints the inliers cover."""
+        template_xs = [kp.pt[0] for kp in template.kps]
+        extent = max(template_xs) - min(template_xs)
+        if extent <= 0 or len(inlier_pts) == 0:
+            return 1.0
+        xs = inlier_pts[:, 0]
+        return float(xs.max() - xs.min()) / extent
+
+    @staticmethod
     def _project_center(
         transform: npt.NDArray[np.float64], width: int, height: int
     ) -> tuple[float, float]:
@@ -325,6 +345,14 @@ class ButtonDetector:
             logger.debug(
                 f"{button_type}: rejected fit with {inliers} inliers "
                 f"(need {min_inliers}) at ratio {inlier_ratio:.2f}"
+            )
+            return None
+
+        span = self._inlier_span(template, src_pts[inlier_mask.ravel() > 0])
+        if span < MIN_INLIER_SPAN:
+            logger.debug(
+                f"{button_type}: rejected fit covering {span:.2f} of the label "
+                f"width (need {MIN_INLIER_SPAN})"
             )
             return None
 

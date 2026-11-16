@@ -145,3 +145,57 @@ class TestDetect:
         img = _background(2)
         for bt in ButtonType:
             assert detector.detect(img, bt) is None
+
+
+class TestRejectsNonButtons:
+    """Scenes that showed up as stray clicks on real screens or on the rig."""
+
+    def _label_prefix_scene(self, fraction: float, scale: float) -> np.ndarray:
+        """The Vortex label cut off after ``fraction`` of its width.
+
+        Stands for other text that starts like the label: Vortex titles the
+        dialog holding the "Download manually" button "Download mod".
+        """
+        import cv2
+
+        button = read_rgb(ASSETS_PATH / "VortexDownloadButtonNew.png")
+        text_left, text_right = 110, 312  # label extent inside the template
+        cut = text_left + round(fraction * (text_right - text_left))
+        prefix = button[14:59, text_left - 8 : cut]
+        fill = button[36, 40].tolist()
+
+        height, width = prefix.shape[:2]
+        prefix = cv2.resize(
+            prefix,
+            (round(width * scale), round(height * scale)),
+            interpolation=cv2.INTER_AREA,
+        )
+        canvas = _background(0)
+        canvas[100:260, 300:1000] = fill  # a plain title bar in the button's fill
+        y, x = 150, 380
+        canvas[y : y + prefix.shape[0], x : x + prefix.shape[1]] = prefix
+        return canvas
+
+    @pytest.mark.parametrize("scale", [0.85, 1.0, 1.25])
+    @pytest.mark.parametrize("fraction", [0.45, 0.55])
+    def test_text_that_only_starts_like_the_label(
+        self, detector: ButtonDetector, fraction: float, scale: float
+    ) -> None:
+        img = self._label_prefix_scene(fraction, scale)
+        assert detector.detect(img, ButtonType.VORTEX) is None
+
+    @pytest.mark.parametrize("level", [0, 30, 43, 128, 255])
+    def test_uniform_frame(self, detector: ButtonDetector, level: int) -> None:
+        # A blank or not-yet-painted screen: no texture at all.
+        img = np.full((720, 1280, 3), level, dtype=np.uint8)
+        for bt in ButtonType:
+            assert detector.detect(img, bt) is None
+
+    def test_half_painted_window(self, detector: ButtonDetector) -> None:
+        # What the app captured right after maximising the Vortex window on
+        # the rig: one painted rectangle in an otherwise black client area.
+        img = np.zeros((1080, 1920, 3), dtype=np.uint8)
+        img[23:823, 0:1280] = (43, 45, 66)
+        img[0:23, :] = (240, 240, 240)  # title bar
+        for bt in ButtonType:
+            assert detector.detect(img, bt) is None
