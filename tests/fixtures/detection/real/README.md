@@ -12,9 +12,17 @@ They are listed in `../cases.json` with `meta.source == "real"`.
 | `issue23_old_vortex.png` | issue #23 | Vortex's older free-download dialog (orange "Download"), 1366x768 monitor at 100 % | found, 1 px off centre |
 | `issue13_new_vortex_dialog.png` | issue #13 | Vortex's "Download mod" dialog ("Download manually"), 2560x1440 at 100 % | known gap |
 | `issue13_new_vortex_crop.png` | issue #13 | the same dialog from a second user, as posted (JPEG) | known gap |
+| `issue23_go_premium.png` | issue #23 | Vortex's own "Go Premium" advert from the same screenshot | nothing may fire |
 
-Each image is cropped to the Vortex dialog: no desktop, no account name. For
-every image the other five button types must stay silent.
+Each image is cropped to the Vortex dialog (or the advert): no desktop, no
+account name. For every image the other five button types must stay silent.
+
+`issue23_go_premium.png` is there because the detector matched it: an orange
+button with white text the size of "Understood!" and of the old "Download".
+The template search took it for both until it compared the label on its own
+(`LABEL_NCC_THRESHOLD` in `services/button_detector.py`). Old Vortex shows
+this button all the time, so a wrong match there is a wrong click on every
+scan.
 
 Read the results with these limits in mind:
 
@@ -23,8 +31,9 @@ Read the results with these limits in mind:
   The case shows the button is picked out of its real dialog, next to three
   other orange buttons, and that nothing else fires. It does not show that
   another user's Vortex draws the same pixels.
-- **All three are debug frames**: the app's green box and caption are drawn on
-  top. In the issue #13 images the box's lower edge runs through the button.
+- **The three dialog images are debug frames**: the app's green box and
+  caption are drawn on top. In the issue #13 images the box's lower edge runs
+  through the button.
 - **Known gaps** are real buttons the detector does not find yet (`known_gap`
   in the case). Both are the new dialog at 100 % scaling: the app's pictures of
   "Download manually" are 150 % captures, and shrunk to two thirds they do not

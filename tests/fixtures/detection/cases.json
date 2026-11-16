@@ -288,6 +288,90 @@
       }
     },
     {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "vortex",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
+      "image": "real/issue23_go_premium.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "source": "real",
+        "variant": "issue23_go_premium",
+        "resolution": "242x130",
+        "ui_generation": "legacy",
+        "app": "vortex",
+        "display": "1366x768 at 100 %",
+        "origin": "GitHub issue #23, Vortex's own 'Go Premium' advert in the window's bottom-right corner (dimmed behind the dialog)"
+      }
+    },
+    {
       "image": "synthetic/vortex_065.png",
       "button_type": "vortex",
       "expect": "present",
