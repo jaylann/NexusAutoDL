@@ -16,6 +16,11 @@ build/
 # Logs / runtime artifacts
 *.log
 nexus_autodl.log
+artifacts/
+
+# Real end-to-end rig (tools/e2e/RUNBOOK.md): local results and VM-specific targets
+e2e-results/
+tools/e2e/targets.toml
 
 # macOS
 .DS_Store

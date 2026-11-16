@@ -48,6 +48,30 @@ from matching. If you hit a detection problem:
 - Note your **resolution, DPI scaling %, and monitor count**; these drive most
   detection/click-location issues.
 
+## Testing monitor setups you don't own
+
+Most click-location bugs depend on monitor count, position and DPI scaling.
+Two rigs cover setups you don't have on your desk:
+
+- **CI, virtual monitors** (`.github/workflows/windows-displays.yml`). It runs on
+  PRs that touch the app or `tools/`, and nightly. A GitHub Windows runner gets
+  virtual monitors (Virtual Display Driver) in several topologies, for example
+  two 1080p screens at 100 % and 150 %, or a second screen left of the primary.
+  On each topology it then:
+  - captures labelled scenarios through the real pipeline
+    (`tools/generate_scenarios.py`),
+  - scores them (`detection_report.py --source scenario`),
+  - runs the real app against stand-in windows and checks every click lands on
+    its button (`tools/e2e_click_check.py`).
+
+  Artifacts hold the captures, debug frames and per-click offsets. The scripts
+  in `tools/ci/` also work on any Windows machine or VM.
+- **Real end-to-end VM** (`tools/e2e/RUNBOOK.md`). Started by hand, never in
+  CI. It drives the live Nexus site and the latest Vortex, browsers and
+  Wabbajack. When it fails, turn the failing screen into a fixture under
+  `tests/fixtures/detection/real/`, after removing any account details from
+  the image.
+
 ## Pull requests
 
 - Open a PR against `main` (please don't send files/zips out of band — a PR keeps

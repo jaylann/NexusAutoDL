@@ -1,0 +1,39 @@
+# Targets for tools/e2e/run_e2e.py on the test VM (see RUNBOOK.md).
+# Copy to tools/e2e/targets.toml (gitignored) and fill in your paths and URLs.
+# Keep every target tiny: a free account downloads slowly and has to click
+# through each file.
+
+[browser]
+# Browser NexusAutoDL launches in Vortex mode and the website flow opens.
+name = "chrome"  # chrome | firefox
+exe = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+downloads = 'C:\Users\tester\Downloads'
+
+[vortex]
+exe = 'C:\Program Files\Black Tree Gaming Ltd\Vortex\Vortex.exe'
+# nxm:// link of a small collection (2-3 small mods) for the game Vortex manages.
+# On the collection page, copy the "Add to Vortex" link.
+collection_url = "nxm://<game>/collections/<slug>/revisions/<n>"
+# Vortex's download folder for that game (Settings > Downloads).
+downloads = 'C:\Users\tester\AppData\Roaming\Vortex\downloads\<game>'
+expected_files = 3
+# Optional: what the tester does before NexusAutoDL starts, and how long --yes waits.
+# prep = "Accept the collection dialogs ..."
+# prep_seconds = 30
+# Optional: shell command run after the flow so the next run starts clean
+# (e.g. a script that removes the collection's mods in Vortex).
+# reset = 'powershell -File C:\e2e\reset-vortex.ps1'
+
+[website]
+# A small mod's "Manual download" link (Files tab), opened in the browser above.
+mod_file_url = "https://www.nexusmods.com/<game>/mods/<id>?tab=files&file_id=<fid>"
+expected_files = 1
+# downloads defaults to [browser].downloads
+
+[wabbajack]
+exe = 'C:\Wabbajack\Wabbajack.exe'
+# Tiny modlist for the same game (likely self-compiled, 2-3 small mods).
+modlist = 'C:\e2e\tiny.wabbajack'
+# Download folder you pick in Wabbajack's install screen.
+downloads = 'C:\e2e\wabbajack\downloads'
+expected_files = 3
