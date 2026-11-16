@@ -9,20 +9,23 @@ They are listed in `../cases.json` with `meta.source == "real"`.
 
 | Image | From | Shows | Result |
 |---|---|---|---|
-| `vortex_2.10.1_dialog_100.png` | Vortex 2.10.1 on a CI runner | "Download mod" dialog at 100 % scaling | found, 0.5 px off centre |
-| `vortex_2.10.1_dialog_125.png` | same | the dialog at 125 % | found, 1.5 px off centre |
-| `vortex_2.10.1_dialog_150.png` | same | the dialog at 150 % | found, 0.7 px off centre |
-| `vortex_1.13.7_dialog_100.png` | Vortex 1.13.7 on a CI runner | the older dialog (orange "Download") at 100 % | found, 0.5 px off centre |
-| `vortex_1.13.7_dialog_125.png` | same | the older dialog at 125 % | found, 1 px off centre |
-| `vortex_1.13.7_dialog_150.png` | same | the older dialog at 150 % | found, 1 px off centre |
-| `vortex_1.13.7_frame_150.png` | same | the whole monitor at 150 %, with a dimmed "Go Premium" button in the corner | found, 1 px off centre |
-| `issue23_old_vortex.png` | issue #23 | Vortex's older free-download dialog (orange "Download"), 1366x768 monitor at 100 % | found, 1 px off centre |
+| `vortex_2.10.1_dialog_100.png` | Vortex 2.10.1 on a CI runner | "Download mod" dialog at 100 % scaling | found |
+| `vortex_2.10.1_dialog_125.png` | same | the dialog at 125 % | found |
+| `vortex_2.10.1_dialog_150.png` | same | the dialog at 150 % | found |
+| `vortex_1.13.7_dialog_100.png` | Vortex 1.13.7 on a CI runner | the older dialog (orange "Download") at 100 % | found |
+| `vortex_1.13.7_dialog_125.png` | same | the older dialog at 125 % | found |
+| `vortex_1.13.7_dialog_150.png` | same | the older dialog at 150 % | found |
+| `vortex_1.13.7_frame_150.png` | same | the whole monitor at 150 %, with a dimmed "Go Premium" button in the corner | found |
+| `issue23_old_vortex.png` | issue #23 | Vortex's older free-download dialog (orange "Download"), 1366x768 monitor at 100 % | found |
 | `issue23_go_premium.png` | issue #23 | Vortex's own "Go Premium" advert from the same screenshot | nothing may fire |
 | `issue13_new_vortex_dialog.png` | issue #13 | "Download mod" dialog at 100 %, debug box drawn through the button | known gap |
 | `issue13_new_vortex_crop.png` | issue #13 | the same from a second user, as posted (JPEG) | known gap |
 
-Each image is cropped to the Vortex dialog (or the advert): no desktop, no
-account name. For every image the other button types must stay silent.
+Every button marked "found" is found between 0.5 and 1.5 px from its centre.
+Each image is cropped to the Vortex dialog (or the advert), except the one
+whole frame, which shows a freshly installed Vortex on a CI runner: no
+desktop of a user, no account name. For every image the other button types
+must stay silent.
 
 ### The captures from a running Vortex
 
