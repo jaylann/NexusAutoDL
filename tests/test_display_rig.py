@@ -238,6 +238,11 @@ class TestDrawScale:
     def test_zoom_multiplies(self) -> None:
         assert draw_scale(self.AT_150, 1.25, 1.5) == pytest.approx(1.25)
 
+    def test_never_beyond_twice_the_picture(self) -> None:
+        # 150 % monitor, 150 % zoom, 100 % capture: 2.25x is past what the
+        # detector accepts (2.2x), so the check stops at 2x.
+        assert draw_scale(self.AT_100, 1.5, 1.5) == pytest.approx(2.0)
+
 
 class TestBuildSteps:
     def test_web_covers_every_monitor_each_round(self) -> None:

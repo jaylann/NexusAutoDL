@@ -29,10 +29,11 @@ What a phase asserts:
   window. The pages cover every monitor, so a logged click nobody received
   means input never arrived.
 
-Button size: the shipped templates are screenshots taken at a known Windows
-scale (see ``TEMPLATES``). A button is drawn at ``monitor scale x zoom /
+Button size: the shipped pictures are screenshots taken at a known Windows
+scale (see ``WEB_TEMPLATES``). A button is drawn at ``monitor scale x zoom /
 capture scale``, so a 100 % monitor shows it as small as a real 100 % user
-sees it. ``zoom`` cycles per round to cover browser zoom.
+sees it. ``zoom`` cycles per round to cover browser zoom, up to twice the
+picture's size (``MAX_DRAW_SCALE``).
 
 Modes:
 
@@ -113,6 +114,11 @@ _VORTEX_POSITIONS: tuple[tuple[float, float], ...] = (
 )
 # Browser zoom per round, on top of the monitor's own scale.
 _ZOOMS: tuple[float, ...] = (1.0, 1.5, 1.1)
+# Largest size a button is drawn at, relative to its picture. The detector
+# accepts fits between 0.4x and 2.2x of a picture (SCALE_RANGE); 2x is the
+# size this check holds the app to. Zoom is reduced where it would exceed it,
+# e.g. a 100 % capture on a 150 % monitor at 150 % zoom (2.25x).
+MAX_DRAW_SCALE = 2.0
 # Shown between rounds while the app must not click. ``blank`` is what the
 # startup period shows anyway, so it is not repeated here.
 IDLE_SCENES: tuple[str, ...] = ("lookalikes", "busy", "half-painted")
@@ -252,8 +258,9 @@ def draw_scale(template: TemplateInfo, monitor_scale: float, zoom: float) -> flo
 
     A template captured at 150 % shows a button 1.5x its 100 % size, so on a
     100 % monitor at 100 % zoom the real button is 1 / 1.5 of the template.
+    Capped at ``MAX_DRAW_SCALE``.
     """
-    return monitor_scale * zoom / template.capture_scale
+    return min(monitor_scale * zoom / template.capture_scale, MAX_DRAW_SCALE)
 
 
 def judge_click(

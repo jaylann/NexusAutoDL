@@ -122,7 +122,9 @@ def render(rows: list[dict[str, Any]]) -> str:
         "",
         (
             f"{passed} of {len(rows)} layouts pass. Each row is one virtual-monitor "
-            "layout on a hosted Windows runner, driven by the real app."
+            "layout on a hosted Windows runner, driven by the real app. Buttons "
+            "are drawn from 0.67x to 2x the size of the app's pictures of them "
+            "(100 % to 300 % scaling for a picture taken at 150 %)."
         ),
         "",
         (
