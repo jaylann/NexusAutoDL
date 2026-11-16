@@ -69,9 +69,10 @@ Three rigs cover setups you don't have on your desk:
   in `tools/ci/` also work on any Windows machine or VM.
 - **CI, real Vortex** (`.github/workflows/real-vortex.yml`). It runs on PRs
   that touch the app or its button pictures, and nightly. A GitHub Windows
-  runner installs a Vortex release (one pinned version and the newest stable
-  one), and a small local extension (`tools/ci/real_vortex/`) makes Vortex show
-  its free-download dialog. `tools/ci/real_vortex_check.py` then compares the
+  runner installs a Vortex release (2.10.1 and 1.13.7, which has the older
+  dialog with the orange "Download", both pinned, and the newest stable one),
+  and a small local extension (`tools/ci/real_vortex/`) makes Vortex show its
+  free-download dialog. `tools/ci/real_vortex_check.py` then compares the
   point the app would click with where Vortex itself says it drew the button,
   at 100, 125 and 150 % scaling. No Nexus account is involved, nothing is
   downloaded and nothing is clicked. The virtual-monitor rig draws the app's
