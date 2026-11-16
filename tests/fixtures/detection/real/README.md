@@ -9,38 +9,63 @@ They are listed in `../cases.json` with `meta.source == "real"`.
 
 | Image | From | Shows | Result |
 |---|---|---|---|
+| `vortex_2.10.1_dialog_100.png` | Vortex 2.10.1 on a CI runner | "Download mod" dialog at 100 % scaling | found, 0.5 px off centre |
+| `vortex_2.10.1_dialog_125.png` | same | the dialog at 125 % | found, 1.5 px off centre |
+| `vortex_2.10.1_dialog_150.png` | same | the dialog at 150 % | found, 0.7 px off centre |
 | `issue23_old_vortex.png` | issue #23 | Vortex's older free-download dialog (orange "Download"), 1366x768 monitor at 100 % | found, 1 px off centre |
-| `issue13_new_vortex_dialog.png` | issue #13 | Vortex's "Download mod" dialog ("Download manually"), 2560x1440 at 100 % | known gap |
-| `issue13_new_vortex_crop.png` | issue #13 | the same dialog from a second user, as posted (JPEG) | known gap |
 | `issue23_go_premium.png` | issue #23 | Vortex's own "Go Premium" advert from the same screenshot | nothing may fire |
+| `issue13_new_vortex_dialog.png` | issue #13 | "Download mod" dialog at 100 %, debug box drawn through the button | known gap |
+| `issue13_new_vortex_crop.png` | issue #13 | the same from a second user, as posted (JPEG) | known gap |
 
 Each image is cropped to the Vortex dialog (or the advert): no desktop, no
-account name. For every image the other five button types must stay silent.
+account name. For every image the other button types must stay silent.
 
-`issue23_go_premium.png` is there because the detector matched it: an orange
-button with white text the size of "Understood!" and of the old "Download".
-The template search took it for both until it compared the label on its own
-(`LABEL_NCC_THRESHOLD` in `services/button_detector.py`). Old Vortex shows
-this button all the time, so a wrong match there is a wrong click on every
-scan.
+### The Vortex 2.10.1 captures
 
-Read the results with these limits in mind:
+These are the independent ones: Vortex drew them, and the app's pictures of the
+button come from somewhere else. A hosted Windows runner installs the Vortex
+release, a small local extension (`tools/ci/real_vortex/` on the
+`spike/real-vortex-ci` branch) puts one entry into the queue Vortex shows its
+free-download dialog for, and the screen is captured through the app's own
+capture pipeline. No Nexus account is involved, nothing is downloaded and
+nothing is clicked, which is why the dialog says "Mod with id 1".
+
+The runner's render matches a user's: the button cut from the 100 % capture is
+found in the issue #13 screenshot at the right pixel, same size (271x39 px).
+
+The 125 % capture is why `MIN_INLIER_RATIO` is 0.2. The dialog says "download"
+five times, which splits the matches; the fit on the real button was thrown out
+at the earlier floor of 0.5.
+
+### The issue screenshots
 
 - **The old dialog's case is not independent of its picture.**
   `assets/VortexDownloadButtonLegacy100.png` was cut from that same screenshot.
   The case shows the button is picked out of its real dialog, next to three
   other orange buttons, and that nothing else fires. It does not show that
   another user's Vortex draws the same pixels.
-- **The three dialog images are debug frames**: the app's green box and
-  caption are drawn on top. In the issue #13 images the box's lower edge runs
-  through the button.
-- **Known gaps** are real buttons the detector does not find yet (`known_gap`
-  in the case). Both are the new dialog at 100 % scaling: the app's pictures of
-  "Download manually" are 150 % captures, and shrunk to two thirds they do not
-  match text Windows rendered at 100 %. A picture cut from one of the two
-  images finds the button in the other, so the fix is a clean capture at 100 %.
-  Until then the cases still guard the other direction: detecting the button
-  anywhere else (the dialog title "Download mod" used to match) fails.
+- `issue23_go_premium.png` is there because the detector matched it: an orange
+  button with white text the size of "Understood!" and of the old "Download".
+  The template search took it for both until it compared the label on its own
+  (`LABEL_NCC_THRESHOLD` in `services/button_detector.py`). Old Vortex shows
+  this button all the time, so a wrong match there is a wrong click on every
+  scan.
+- **The issue #13 images are debug frames**: the app's green box is drawn on
+  top and its lower edge runs through the button. That line is what makes the
+  detector miss it: drawn onto the clean 100 % capture it has the same effect.
+  They are kept as known gaps (`known_gap` in the case) for the other
+  direction: detecting the button anywhere else fails, and the dialog title
+  "Download mod" used to match.
+
+A known gap is reported as an expected failure and listed by
+`detection_report.py` outside the score. It tolerates only "nothing detected".
+
+## Not covered by a real capture
+
+- Old Vortex (1.x) from a clean install: it closes itself on the runner before
+  the dialog can be shown.
+- Vortex scaled by its own zoom setting, other themes, other languages.
+- Any website button in a real browser.
 
 ## Adding captures
 

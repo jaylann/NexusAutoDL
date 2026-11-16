@@ -29,11 +29,15 @@ RANSAC_REPROJ_PX = 3.0
 RANSAC_MAX_ITERS = 2000
 RANSAC_CONFIDENCE = 0.995
 
-# Transform acceptance gates. Buttons only translate and uniformly scale (DPI),
-# so anything rotated or outside the plausible scale window is a false match.
-# The scale window extends slightly past the rendered-scale extremes (0.65-2.0
-# in the benchmark) so a boundary fit is not rejected by rounding.
-MIN_INLIER_RATIO = 0.5
+# Share of the label's matched keypoints that must agree on one placement.
+# Low on purpose: a word of the label that is on screen several times splits
+# the matches between its instances. Vortex's real dialog says "download" five
+# times around the "Download manually" button. At 125 % scaling the fit on the
+# real button holds 0.35 of the matches and was rejected at the earlier floor
+# of 0.5, although it sits on the button and passes every other check. No
+# benchmark case needs this gate at all: with it off there is still no false
+# positive, the span, appearance and label-end checks reject them first.
+MIN_INLIER_RATIO = 0.2
 
 # Share of the template's keypoint width the inliers must span. Text that only
 # starts like the label fits perfectly and looks right where it overlaps: the
@@ -42,6 +46,11 @@ MIN_INLIER_RATIO = 0.5
 # of the label (0.46 and 0.24 on the real screenshots from issue #13), while
 # true fits measure >= 0.67 across the benchmark.
 MIN_INLIER_SPAN = 0.6
+
+# Transform acceptance gates. Buttons only translate and uniformly scale (DPI),
+# so anything rotated or outside the plausible scale window is a false match.
+# The scale window extends slightly past the rendered-scale extremes (0.65-2.0
+# in the benchmark) so a boundary fit is not rejected by rounding.
 SCALE_RANGE = (0.4, 2.2)
 MAX_ROTATION_DEG = 5.0
 
