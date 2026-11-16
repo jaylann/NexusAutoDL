@@ -100,6 +100,17 @@ def leg_row(leg_dir: Path) -> dict[str, Any]:
     web, web_ok = _click_cell(phases.get("web"))
     vortex, vortex_ok = _click_cell(phases.get("vortex"))
 
+    # Optional step: absent on runs from before it existed.
+    forced = _load(artifacts / "dpi-override" / "results.json")
+    forced_text = "not run"
+    forced_ok = True
+    if forced:
+        forced_text = "; ".join(
+            f"{layer['layer']}: {layer['status']} ({layer['reason']})"
+            for layer in forced["layers"]
+        )
+        forced_ok = all(layer["status"] != "fail" for layer in forced["layers"])
+
     return {
         "layout": name,
         "monitors": monitors,
@@ -110,7 +121,8 @@ def leg_row(leg_dir: Path) -> dict[str, Any]:
         "noisy": noisy_text,
         "web": web,
         "vortex": vortex,
-        "ok": app_ok and scenarios_ok and web_ok and vortex_ok,
+        "forced_dpi": forced_text,
+        "ok": app_ok and scenarios_ok and web_ok and vortex_ok and forced_ok,
     }
 
 
@@ -148,6 +160,15 @@ def render(rows: list[dict[str, Any]]) -> str:
         "",
     ]
     lines += [f"- {row['layout']}: {row['noisy']}" for row in rows]
+    lines += [
+        "",
+        (
+            "Started under a forced DPI mode (the python.exe compatibility override): "
+            "the app must refuse to start where that scales its coordinates."
+        ),
+        "",
+    ]
+    lines += [f"- {row['layout']}: {row['forced_dpi']}" for row in rows]
     return "\n".join(lines) + "\n"
 
 

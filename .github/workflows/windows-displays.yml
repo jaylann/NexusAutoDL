@@ -136,6 +136,13 @@ jobs:
         if: ${{ !cancelled() && steps.displays.outcome == 'success' }}
         run: python tools/e2e_click_check.py --mode both --out artifacts/click-check
 
+      # The python.exe "Override high DPI scaling" setting, imitated with
+      # __COMPAT_LAYER: the app must refuse to start where that scales its
+      # coordinates, and run where it does not.
+      - name: Forced DPI mode check
+        if: ${{ !cancelled() && steps.displays.outcome == 'success' }}
+        run: python tools/ci/dpi_override_check.py --topology "${{ matrix.topology }}" --out artifacts/dpi-override
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4

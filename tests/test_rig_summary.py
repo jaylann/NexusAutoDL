@@ -140,3 +140,30 @@ def test_render_counts_passing_layouts(tmp_path: Path) -> None:
     assert "1 of 2 layouts pass" in text
     assert "| single-1080p-100 |" in text and "| PASS |" in text
     assert "| mixed |" in text and "| FAIL |" in text
+
+
+def test_forced_dpi_failure_fails_the_leg(tmp_path: Path) -> None:
+    leg = _leg(tmp_path)
+    _write(
+        leg / "artifacts" / "dpi-override" / "results.json",
+        {
+            "layers": [
+                {"layer": "DPIUNAWARE", "status": "fail", "reason": "app kept running"},
+                {"layer": "HIGHDPIAWARE", "status": "not applied", "reason": "x"},
+            ]
+        },
+    )
+    row = leg_row(leg)
+    assert row["ok"] is False
+    assert row["forced_dpi"].startswith("DPIUNAWARE: fail (app kept running)")
+
+
+def test_forced_dpi_layer_that_did_not_apply_does_not_fail_the_leg(
+    tmp_path: Path,
+) -> None:
+    leg = _leg(tmp_path)
+    _write(
+        leg / "artifacts" / "dpi-override" / "results.json",
+        {"layers": [{"layer": "DPIUNAWARE", "status": "not applied", "reason": "x"}]},
+    )
+    assert leg_row(leg)["ok"] is True
