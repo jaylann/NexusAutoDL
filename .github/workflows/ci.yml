@@ -24,8 +24,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # ruff is pinned in requirements-dev.txt: a new release can change the
+      # default rule set, so it only moves with a reviewed bump.
       - name: Install ruff
-        run: pip install ruff
+        run: pip install -r requirements-dev.txt
       - name: Lint
         run: ruff check .
       - name: Format check
@@ -47,12 +49,55 @@ jobs:
       - name: Type check
         run: mypy . || true
 
+  detection-benchmark:
+    # Quality gate: regenerates the deterministic fixture suite and fails when
+    # the detection score drops below the bar. Runs on both OSes to catch
+    # platform-specific OpenCV/SIFT drift. Full per-type/per-variant breakdown
+    # lands in the job summary for PR review.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      # The tables go to the job summary before the step exits, so a failing
+      # score still shows which type or variant caused it.
+      - name: Detection benchmark (fail under 0.999)
+        shell: bash
+        run: |
+          status=0
+          python detection_report.py --fail-under 0.999 > report.txt || status=$?
+          cat report.txt
+          {
+            echo '### Detection benchmark (${{ matrix.os }})'
+            echo '```'
+            cat report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
   test:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
         python-version: ["3.9", "3.12"]
+        # ubuntu-latest (26.04) has no Python 3.9 build; keep testing 3.9 on
+        # 24.04 for as long as the README promises 3.9 support.
+        exclude:
+          - os: ubuntu-latest
+            python-version: "3.9"
+        include:
+          - os: ubuntu-24.04
+            python-version: "3.9"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

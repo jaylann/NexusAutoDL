@@ -11,21 +11,20 @@ import pytest
 
 from models import AppConfig
 from services.button_detector import ButtonDetector
-from tests.harness import ASSETS_PATH, FIXTURES_DIR
+from tests.harness import ASSETS_PATH
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Bootstrap synthetic fixtures if missing so CI needn't commit PNGs.
+    """Bootstrap synthetic fixtures so CI needn't commit PNGs.
 
     Real fixtures (``real/``) are committed by contributors; the deterministic
-    synthetic set is (re)generated whenever its images are absent. Generation
-    preserves any real entries already in ``cases.json``.
+    synthetic set is (re)generated whenever its images are missing or were
+    written by an older generator. Generation preserves any real entries
+    already in ``cases.json``.
     """
-    synthetic_dir = FIXTURES_DIR / "synthetic"
-    if not any(synthetic_dir.glob("*.png")):
-        from tests._generate_synthetic import main as generate_synthetic
+    from tests._generate_synthetic import ensure_fixtures
 
-        generate_synthetic()
+    ensure_fixtures()
 
 
 @pytest.fixture(scope="session")

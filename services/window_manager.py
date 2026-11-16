@@ -6,11 +6,12 @@ from __future__ import annotations
 
 import subprocess
 import time
-from typing import Optional
 
 from models import BoundingBox, BrowserType, Monitor
-from utils.platform import IS_WINDOWS, user32, win32api, win32gui
+from services.geometry import MonitorFrame, VirtualDesktop
+from utils.dpi import ensure_dpi_awareness
 from utils.logger import get_logger
+from utils.platform import IS_WINDOWS, user32, win32api, win32con, win32gui
 
 logger = get_logger(__name__)
 
@@ -18,22 +19,39 @@ logger = get_logger(__name__)
 class WindowManager:
     """Manages window positioning and browser launching."""
 
-    def __init__(self, monitors: list[Monitor]) -> None:
+    def __init__(self, desktop: VirtualDesktop) -> None:
         """
         Initialize window manager.
 
         Args:
-            monitors: List of available monitors
+            desktop: Monitor layout in physical virtual-desktop pixels
         """
         if not IS_WINDOWS:
             raise RuntimeError("WindowManager is only available on Windows hosts")
 
-        self.monitors: list[Monitor] = monitors
+        self.desktop = desktop
         logger.info("Window manager initialized")
+
+    def _place_window(self, handle: int, frame: MonitorFrame) -> None:
+        """Move a window onto a monitor and maximize it there."""
+        user32.ShowWindow(handle, 1)  # SW_SHOWNORMAL
+        # Size it to the monitor too, not only move it: SW_MAXIMIZE picks the
+        # monitor the window overlaps most, and a window that kept a size
+        # larger than the target can overlap a neighbour as much.
+        win32gui.SetWindowPos(
+            handle,
+            None,
+            frame.left,
+            frame.top,
+            frame.width,
+            frame.height,
+            win32con.SWP_NOZORDER,
+        )
+        user32.ShowWindow(handle, 3)  # SW_MAXIMIZE
 
     def launch_browser(self, browser: BrowserType) -> None:
         """
-        Launch and position browser.
+        Launch and position browser on the primary monitor.
 
         Args:
             browser: Browser type to launch
@@ -65,24 +83,19 @@ class WindowManager:
             logger.warning(f"Could not find {browser.value} window")
             return
 
-        if len(self.monitors) > 1:
-            primary: Monitor = self.monitors[0]
-            user32.ShowWindow(h_browser, 1)  # SW_SHOWNORMAL
-            win32gui.SetWindowPos(
-                h_browser,
-                None,
-                primary.x,
-                primary.y,
-                primary.width,
-                primary.height,
-                True,
-            )
-            user32.ShowWindow(h_browser, 3)  # SW_MAXIMIZE
+        if len(self.desktop.frames) > 1:
+            self._place_window(h_browser, self.desktop.primary)
 
         logger.info(f"{browser.value} positioned successfully")
 
-    def position_vortex(self) -> None:
-        """Position Vortex window on secondary monitor."""
+    def position_vortex(self, scanned: list[MonitorFrame] | None = None) -> None:
+        """Position Vortex on the first secondary monitor that is scanned.
+
+        Args:
+            scanned: Monitors the app captures; all of them when None. With
+                --force-primary that is only the primary, and moving Vortex to
+                a secondary would put it where the app never looks.
+        """
         vortex_handle: int = user32.FindWindowW(None, "Vortex")
 
         if vortex_handle == 0:
@@ -91,25 +104,19 @@ class WindowManager:
 
         logger.info("Found Vortex window")
 
-        if len(self.monitors) > 1:
-            secondary: Monitor = self.monitors[1]
-            user32.ShowWindow(vortex_handle, 1)  # SW_SHOWNORMAL
-            win32gui.SetWindowPos(
-                vortex_handle,
-                None,
-                secondary.x,
-                secondary.y,
-                secondary.width,
-                secondary.height,
-                True,
+        secondaries = self.desktop.secondaries
+        targets = [f for f in secondaries if scanned is None or f in scanned]
+        if targets:
+            self._place_window(vortex_handle, targets[0])
+            logger.info("Vortex positioned successfully")
+        elif secondaries:
+            logger.info(
+                "Vortex left where it is: no secondary monitor is being scanned"
             )
-            user32.ShowWindow(vortex_handle, 3)  # SW_MAXIMIZE
-
-        logger.info("Vortex positioned successfully")
 
     def position_window_by_title(self, title_substr: str) -> None:
         """
-        Position window matching title substring.
+        Position window matching title substring on the primary monitor.
 
         Args:
             title_substr: Substring to match in window title
@@ -135,17 +142,12 @@ class WindowManager:
         window_title: str = win32gui.GetWindowText(handle)
         logger.info(f"Found window '{window_title}' matching '{title_substr}'")
 
-        if len(self.monitors) > 1:
-            primary = self.monitors[0]
-            user32.ShowWindow(handle, 1)
-            win32gui.SetWindowPos(
-                handle, None, primary.x, primary.y, primary.width, primary.height, True
-            )
-            user32.ShowWindow(handle, 3)
+        if len(self.desktop.frames) > 1:
+            self._place_window(handle, self.desktop.primary)
 
         logger.info(f"Window '{window_title}' positioned")
 
-    def get_vortex_bbox(self) -> Optional[BoundingBox]:
+    def get_vortex_bbox(self) -> BoundingBox | None:
         """
         Get Vortex window bounding box.
 
@@ -165,13 +167,45 @@ class WindowManager:
         return bbox
 
     @staticmethod
+    def scaled_monitors() -> list[str]:
+        """Monitors whose bounds Windows reports scaled to this process.
+
+        Compares each monitor's rect, as this process sees it, with the display
+        mode the monitor is really in. The two are equal once the process is
+        per-monitor DPI aware. They differ when Windows holds the process in
+        another mode, which a high-DPI compatibility override on python.exe
+        does and the process cannot undo.
+
+        Returns:
+            One description per affected monitor; empty when all agree
+        """
+        ensure_dpi_awareness()
+
+        problems: list[str] = []
+        for handle, _, rect in win32api.EnumDisplayMonitors(None, None):
+            device = win32api.GetMonitorInfo(handle)["Device"]
+            mode = win32api.EnumDisplaySettings(device, win32con.ENUM_CURRENT_SETTINGS)
+            reported = (rect[2] - rect[0], rect[3] - rect[1])
+            actual = (mode.PelsWidth, mode.PelsHeight)
+            if reported != actual:
+                problems.append(
+                    f"{device} is {actual[0]}x{actual[1]} but reported as "
+                    f"{reported[0]}x{reported[1]}"
+                )
+        return problems
+
+    @staticmethod
     def get_all_monitors() -> list[Monitor]:
         """
-        Get all available monitors.
+        Get all available monitors (physical pixels; primary first).
 
         Returns:
             List of Monitor objects
         """
+        # Must precede the EnumDisplayMonitors call: an unaware process gets
+        # DPI-virtualized (logical) bounds that disagree with captured pixels.
+        ensure_dpi_awareness()
+
         raw_monitors = win32api.EnumDisplayMonitors(None, None)
         monitors: list[Monitor] = []
 
@@ -179,6 +213,8 @@ class WindowManager:
             x, y, right, bottom = rect
             monitor = Monitor(x=x, y=y, width=right - x, height=bottom - y)
             monitors.append(monitor)
+
+        monitors.sort(key=lambda m: (m.x != 0 or m.y != 0, m.x, m.y))
 
         logger.info(f"Found {len(monitors)} monitors: {monitors}")
         return monitors

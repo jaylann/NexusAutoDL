@@ -120,9 +120,10 @@ python main.py --vortex --browser chrome --force-primary
 ```
 
 **What it does:**
-- Positions Vortex and Chrome windows
-- Scans primary monitor only
-- Handles modern green download buttons
+- Scans the primary monitor only, so keep both Vortex and the browser on it
+  (with more than one monitor, Vortex is left where it is instead of being
+  moved to a secondary)
+- Detects the Vortex and Nexus download buttons, old and new designs
 - Clicks through Vortex dialogs automatically
 
 **Best for:** Clean single-monitor setups
@@ -130,19 +131,21 @@ python main.py --vortex --browser chrome --force-primary
 </details>
 
 <details>
-<summary><b>Scenario 2: Legacy Nexus Mods Interface</b></summary>
+<summary><b>Scenario 2: Old Vortex Dialogs</b></summary>
 
 ```bash
 python main.py --vortex --browser firefox --legacy
 ```
 
 **What it does:**
-- Uses legacy button templates
-- Handles "Staging" and "Understood" dialog buttons
-- Works with older Nexus Mods layout
+- Also clicks the old "Staging", "Understood" and "click here" dialogs
 - Compatible with Firefox
 
-**Best for:** Users on older Nexus Mods UI or with legacy template preferences
+Old and new download buttons are both detected without this flag: the app
+tries every button design it knows, so old Vortex with today's Nexus site
+works as is.
+
+**Best for:** Users on an old Vortex that still shows those dialogs
 
 </details>
 
@@ -222,8 +225,8 @@ python main.py --vortex --browser chrome
 ```
 
 **What it does:**
-- Captures entire virtual desktop (all monitors)
-- Detects buttons anywhere on screen
+- Captures every monitor as its own frame (works with negative origins, portrait displays, mixed DPI scaling and non-contiguous layouts)
+- Detects buttons anywhere on any screen
 - Positions windows automatically
 
 **Best for:** Multi-monitor setups where windows may be on any display
@@ -240,11 +243,11 @@ python main.py --vortex --browser chrome
 |--------|------|---------|-------------|
 | `--browser` | choice | None | Browser to position: `chrome` or `firefox` (requires `--vortex`) |
 | `--vortex` | flag | False | Enable Vortex Mod Manager integration (detects Vortex buttons, handles dialogs, manages windows). Without this, only Website and Wabbajack buttons are detected. |
-| `--legacy` | flag | False | Use legacy button templates for old Nexus Mods UI |
+| `--legacy` | flag | False | Also handle the old Vortex "Understood" / "Staging" / "click here" dialogs. Old and new download buttons are detected either way. |
 | `--verbose` | flag | False | Enable detailed debug logging to console |
 | `--force-primary` | flag | False | Scan primary monitor only (ignore secondary displays) |
 | `--window-title` | text | None | Move window containing this text to foreground before scanning |
-| `--min-matches` | int | 8 | Minimum SIFT feature matches required for button detection |
+| `--min-matches` | int | 8 | Minimum SIFT feature matches for the Vortex button (the website, Wabbajack and dialog buttons use a fixed 6) |
 | `--ratio` | float | 0.75 | Lowe ratio test threshold for SIFT matching (0.0-1.0) |
 | `--click-delay` | float | 2.0 | Seconds to wait between scan loop iterations |
 | `--simulate` | flag | False | Run in simulation mode without actual clicking (safe mode) |
@@ -274,7 +277,7 @@ python main.py --help
    ```bash
    python main.py --min-matches 5
    ```
-3. Check if you need `--legacy` flag for old Nexus Mods UI
+3. On an old Vortex that shows "Understood" / "Staging" dialogs, add `--legacy`
 4. Enable debug mode to see what's being detected:
    ```bash
    python main.py --debug-frame-dir ./debug --verbose
@@ -370,14 +373,11 @@ python main.py --help
 <summary><b>Problem: Buttons detected but clicks miss target</b></summary>
 
 **Possible Causes:**
-- DPI scaling issues on Windows
 - Window moved between detection and click
-- Incorrect coordinate transformation
+- Windows scales the program's coordinates. That happens when the compatibility setting on `python.exe` (Properties → Compatibility → Change high DPI settings → "Override high DPI scaling behavior") is set to **System** or **System (Enhanced)**. Older versions of this README recommended ticking that box; with its default choice, **Application**, it does no harm
 
 **Solutions:**
-1. Disable Windows DPI scaling for Python:
-   - Right-click `python.exe` → Properties → Compatibility
-   - Check "Override high DPI scaling behavior"
+1. NexusAutoDL declares per-monitor DPI awareness itself at startup, so no override on `python.exe` is needed: untick it, or leave it on **Application**. With **System** or **System (Enhanced)** the program refuses to start on any setup with a scaled monitor (exit code 2) and names the affected monitor instead of clicking in the wrong place. The log (`nexus_autodl.log`) has a `Process DPI awareness` line: `per_monitor_v2` or `per_monitor` is right. `system` misplaces clicks on monitors scaled differently from the primary, `unaware` on any scaled monitor.
 2. Increase `--click-delay` to ensure pages load:
    ```bash
    python main.py --click-delay 3.0

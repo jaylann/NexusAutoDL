@@ -11,7 +11,8 @@ python -m venv .venv
 # Windows:  .venv\Scripts\activate
 # macOS/Linux:  source .venv/bin/activate
 pip install -r requirements.txt
-pip install ruff mypy pytest   # dev tools
+pip install -r requirements-dev.txt   # pytest + the pinned ruff
+pip install mypy                      # optional type check
 ```
 
 `pywin32` only installs on Windows. On macOS/Linux the app runs in a limited
@@ -47,6 +48,43 @@ from matching. If you hit a detection problem:
   — it can become a regression fixture.
 - Note your **resolution, DPI scaling %, and monitor count**; these drive most
   detection/click-location issues.
+
+## Testing monitor setups you don't own
+
+Most click-location bugs depend on monitor count, position and DPI scaling.
+Three rigs cover setups you don't have on your desk:
+
+- **CI, virtual monitors** (`.github/workflows/windows-displays.yml`). It runs on
+  PRs that touch the app or `tools/`, and nightly. A GitHub Windows runner gets
+  virtual monitors (Virtual Display Driver) in several topologies, for example
+  two 1080p screens at 100 % and 150 %, or a second screen left of the primary.
+  On each topology it then:
+  - captures labelled scenarios through the real pipeline
+    (`tools/generate_scenarios.py`),
+  - scores them (`detection_report.py --source scenario`),
+  - runs the real app against stand-in windows and checks every click lands on
+    its button (`tools/e2e_click_check.py`).
+
+  Artifacts hold the captures, debug frames and per-click offsets. The scripts
+  in `tools/ci/` also work on any Windows machine or VM.
+- **CI, real Vortex** (`.github/workflows/real-vortex.yml`). It runs on PRs
+  that touch the app or its button pictures, and nightly. A GitHub Windows
+  runner installs a Vortex release (2.10.1 and 1.13.7, which has the older
+  dialog with the orange "Download", both pinned, and the newest stable one),
+  and a small local extension (`tools/ci/real_vortex/`) makes Vortex show its
+  free-download dialog. `tools/ci/real_vortex_check.py` then compares the
+  point the app would click with where Vortex itself says it drew the button,
+  at 100, 125 and 150 % scaling. No Nexus account is involved, nothing is
+  downloaded and nothing is clicked. The virtual-monitor rig draws the app's
+  own pictures of the buttons; this is the check that those pictures still
+  match what Vortex renders. Its artifacts hold clean captures of the dialog,
+  which is where new fixtures under `tests/fixtures/detection/real/` and new
+  button pictures come from.
+- **Real end-to-end VM** (`tools/e2e/RUNBOOK.md`). Started by hand, never in
+  CI. It drives the live Nexus site and the latest Vortex, browsers and
+  Wabbajack. When it fails, turn the failing screen into a fixture under
+  `tests/fixtures/detection/real/`, after removing any account details from
+  the image.
 
 ## Pull requests
 

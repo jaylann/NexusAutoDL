@@ -16,10 +16,5 @@ class Monitor(BaseModel):
         """Calculate aspect ratio."""
         return self.width / self.height
 
-    @property
-    def is_negative(self) -> bool:
-        """Check if monitor is left of primary."""
-        return self.x < 0
-
     class Config:
         frozen = True

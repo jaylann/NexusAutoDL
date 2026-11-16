@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from math import hypot
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import cv2
 import numpy as np
@@ -49,7 +49,7 @@ def read_rgb(path: Path) -> npt.NDArray[np.uint8]:
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
-def parse_button_type(value: str) -> Optional[ButtonType]:
+def parse_button_type(value: str) -> ButtonType | None:
     """Resolve a manifest ``button_type`` string to a ``ButtonType`` or None."""
     try:
         return ButtonType(value)
@@ -82,7 +82,7 @@ def skip_reason(
     case: dict[str, Any],
     fixtures_dir: Path = FIXTURES_DIR,
     assets_path: Path = ASSETS_PATH,
-) -> Optional[str]:
+) -> str | None:
     """Return why a case can't run on this branch, or None if it can.
 
     Cases are skipped (not failed) when the button type is unknown here, its
@@ -99,14 +99,42 @@ def skip_reason(
     return None
 
 
+def known_gap(case: dict[str, Any]) -> str | None:
+    """Why a present-case is known not to be detected yet, or None.
+
+    A known gap is a button the detector misses today, for the reason the
+    case gives (a picture that is missing, or an image with something drawn
+    over the button). It stays in the manifest so the miss is visible and so
+    a wrong click there still fails:
+    the only accepted outcome is "nothing detected". Once the button is found,
+    the marker has to be removed (the test fails until it is).
+    """
+    reason = case.get("known_gap")
+    return str(reason) if reason else None
+
+
 def case_id(case: dict[str, Any]) -> str:
-    """Readable id: ``<source>-<resolution>-<button_type>-<expect>``."""
+    """Readable id: ``<source>-<variant>-<scale>-<button_type>-<expect>``."""
     meta = case.get("meta", {})
     source = str(meta.get("source", "?")).replace(" ", "")
-    resolution = str(meta.get("resolution", "?"))
-    return f"{source}-{resolution}-{case['button_type']}-{case['expect']}"
+    variant = str(meta.get("variant", meta.get("resolution", "?")))
+    parts = [source, variant]
+    if "scale" in meta:
+        parts.append(f"x{meta['scale']}")
+    parts += [case["button_type"], case["expect"]]
+    return "-".join(parts)
 
 
 def centroid_error(result_xy: tuple[int, int], point: list[int]) -> float:
     """Euclidean distance (px) between a detection centroid and ground truth."""
     return hypot(result_xy[0] - point[0], result_xy[1] - point[1])
+
+
+def ground_truth_error(result_xy: tuple[int, int], case: dict[str, Any]) -> float:
+    """Distance (px) to the nearest ground-truth point of a present-case.
+
+    Cases carry a single ``point``; multi-instance cases additionally list all
+    valid instance centers under ``points`` -- hitting any instance counts.
+    """
+    points = case.get("points") or [case["point"]]
+    return min(centroid_error(result_xy, point) for point in points)

@@ -1,0 +1,202 @@
+name: Windows displays
+
+# Virtual-monitor rig: installs the Virtual Display Driver on a GitHub-hosted
+# Windows runner, arranges a monitor topology (count, resolution, position,
+# per-monitor scale), then checks capture, detection and click landing under it
+# with the real capture pipeline and the real app. Never touches Nexus Mods.
+# Scripts: tools/ci/, tools/generate_scenarios.py, tools/e2e_click_check.py.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+  # `pull_request`, never `pull_request_target`: fork PRs run without secrets.
+  pull_request:
+    paths:
+      - "services/**"
+      - "utils/**"
+      - "models/**"
+      - "assets/**"
+      - "tools/**"
+      - "tests/**"
+      - "app.py"
+      - "main.py"
+      - "detection_report.py"
+      - "requirements.txt"
+      - ".github/workflows/windows-displays.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-displays-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  displays:
+    name: ${{ matrix.name }}
+    # Pinned images: driver install and display APIs differ between Windows
+    # builds. windows-2025 unless a layout asks for another.
+    runs-on: ${{ matrix.os || 'windows-2025' }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: single-1080p-100
+            count: 1
+            topology: "1920x1080@0,0:100"
+          - name: dual-1080p-100-150
+            count: 2
+            topology: "1920x1080@0,0:100;1920x1080@1920,0:150"
+          # Negative x and a scaled secondary together.
+          - name: dual-secondary-left-150
+            count: 2
+            topology: "1920x1080@0,0:100;1920x1080@-1920,0:150"
+          - name: mixed-1440p-125-1080p-100
+            count: 2
+            topology: "2560x1440@0,0:125;1920x1080@2560,0:100"
+          # The reporter's setup in issue #23: scaled primary, small unscaled
+          # secondary. Once more on the older Windows image.
+          - name: issue-23-1080p-150-768p-100
+            count: 2
+            topology: "1920x1080@0,0:150;1366x768@1920,0:100"
+          - name: issue-23-on-windows-2022
+            os: windows-2022
+            count: 2
+            topology: "1920x1080@0,0:150;1366x768@1920,0:100"
+          # Negative y: the secondary sits above the primary.
+          - name: stacked-secondary-above-125
+            count: 2
+            topology: "1920x1080@0,0:100;1920x1080@0,-1080:125"
+          - name: triple-mixed
+            count: 3
+            topology: "2560x1440@0,0:125;1920x1080@-1920,0:100;1920x1080@2560,0:150"
+          - name: single-4k-200
+            count: 1
+            topology: "3840x2160@0,0:200"
+          # Portrait leaves a dead zone below the primary in the virtual desktop.
+          - name: portrait-right
+            count: 2
+            topology: "1920x1080@0,0:100;1080x1920@1920,0:100"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      # Before touching anything: is there an interactive desktop at all?
+      - name: Baseline report (runner display, no driver)
+        continue-on-error: true
+        run: python tools/ci/display_report.py --out artifacts/baseline
+
+      - name: Install Virtual Display Driver
+        shell: pwsh
+        run: tools/ci/install_virtual_display_driver.ps1 -Count ${{ matrix.count }}
+
+      - name: Apply topology
+        run: python tools/ci/set_display_layout.py --layout "${{ matrix.topology }}" --json artifacts/layout.json
+
+      - name: Check display state
+        id: displays
+        run: python tools/ci/display_report.py --out artifacts/report --expect "${{ matrix.topology }}"
+
+      - name: Generate and verify detection scenarios
+        if: ${{ !cancelled() && steps.displays.outcome == 'success' }}
+        run: >-
+          python tools/generate_scenarios.py
+          --out tests/fixtures/detection/real
+          --prefix ${{ matrix.name }}
+          --topology "${{ matrix.topology }}"
+          --append-to-cases --verify --strict
+
+      # Same sweep with the runner's desktop (wallpaper, taskbar, watermark text)
+      # left visible on the other monitors. Harder and less deterministic, so it
+      # only reports: results go to artifacts, never to cases.json.
+      - name: Noisy-desktop scenarios (report only)
+        if: ${{ !cancelled() && steps.displays.outcome == 'success' }}
+        continue-on-error: true
+        run: >-
+          python tools/generate_scenarios.py
+          --out artifacts/noisy-scenarios
+          --prefix ${{ matrix.name }}-noisy
+          --topology "${{ matrix.topology }}"
+          --noisy --verify --strict
+
+      # 0.999 means no miss and no false positive among the scenario cases.
+      - name: Detection report (scenario cases)
+        if: ${{ !cancelled() && steps.displays.outcome == 'success' }}
+        run: python detection_report.py --source scenario --fail-under 0.999
+
+      - name: Click-landing check (real app)
+        if: ${{ !cancelled() && steps.displays.outcome == 'success' }}
+        run: python tools/e2e_click_check.py --mode both --out artifacts/click-check
+
+      # The python.exe "Override high DPI scaling" setting, imitated with
+      # __COMPAT_LAYER: the app must refuse to start where that scales its
+      # coordinates, and run where it does not.
+      - name: Forced DPI mode check
+        if: ${{ !cancelled() && steps.displays.outcome == 'success' }}
+        run: python tools/ci/dpi_override_check.py --topology "${{ matrix.topology }}" --out artifacts/dpi-override
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: displays-${{ matrix.name }}
+          path: |
+            artifacts/
+            tests/fixtures/detection/real/
+            tests/fixtures/detection/cases.json
+          if-no-files-found: warn
+
+  # One table for every layout, and the single check that says whether the rig
+  # passed: it fails when any layout failed or left no results behind.
+  report:
+    name: compatibility report
+    needs: displays
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: displays-*
+          path: rig-artifacts
+
+      - name: Build the compatibility table
+        id: table
+        run: python tools/ci/summarise_rig.py rig-artifacts --out compat-report.md
+
+      - name: Publish to the job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if [ -f compat-report.md ]; then
+            cat compat-report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No compatibility table: no layout uploaded results." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the table
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: compat-report
+          path: compat-report.md
+          if-no-files-found: warn
+
+      - name: Every layout must have passed
+        if: ${{ needs.displays.result != 'success' }}
+        run: |
+          echo "displays job result: ${{ needs.displays.result }}"
+          exit 1

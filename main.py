@@ -5,16 +5,18 @@ NexusAutoDL - Automated Nexusmods downloader.
 
 from __future__ import annotations
 
-from typing import Optional
-
 import click
 
 from app import run as run_app
 from models import AppConfig, BrowserType
+from utils.dpi import CoordinatesScaledError, ensure_dpi_awareness
 from utils.logger import configure_logging, get_logger
 from utils.platform import IS_WINDOWS
 
 logger = get_logger(__name__)
+
+# Exit code when Windows scales the process's coordinates (see utils.dpi).
+EXIT_COORDINATES_SCALED = 2
 
 
 @click.command()
@@ -28,7 +30,10 @@ logger = get_logger(__name__)
     "--vortex", is_flag=True, default=False, help="Enable Vortex mod manager mode"
 )
 @click.option(
-    "--legacy", is_flag=True, default=False, help="Use legacy button assets and dialogs"
+    "--legacy",
+    is_flag=True,
+    default=False,
+    help="Also handle the old Vortex 'Understood' / 'Staging' / 'click here' dialogs",
 )
 @click.option("--verbose", is_flag=True, default=False, help="Enable verbose logging")
 @click.option(
@@ -74,17 +79,17 @@ logger = get_logger(__name__)
     help="Directory to store annotated debug screenshots (optional)",
 )
 def main(
-    browser: Optional[str],
+    browser: str | None,
     vortex: bool,
     legacy: bool,
     verbose: bool,
     force_primary: bool,
-    window_title: Optional[str],
+    window_title: str | None,
     min_matches: int,
     ratio: float,
     click_delay: float,
     simulate: bool,
-    debug_frame_dir: Optional[str],
+    debug_frame_dir: str | None,
 ) -> None:
     """
     NexusAutoDL - Automated Nexusmods downloader.
@@ -94,7 +99,12 @@ def main(
 
     Use --simulate to test without Windows or actual button detection.
     """
+    # Logging first, so the awareness result below reaches the log file a user
+    # attaches to a report. Setting up loguru touches no window API.
     configure_logging(verbose)
+    # Must run before any other win32/mss call: DPI awareness is process-global
+    # and one-shot, and everything downstream assumes physical-pixel geometry.
+    ensure_dpi_awareness()
 
     # Validate arguments
     effective_simulation: bool = simulate or not IS_WINDOWS
@@ -125,7 +135,11 @@ def main(
 
     # Run scanner
     logger.info("🚀 Starting NexusAutoDL")
-    run_app(config, simulate=effective_simulation)
+    try:
+        run_app(config, simulate=effective_simulation)
+    except CoordinatesScaledError as exc:
+        logger.error(str(exc))
+        raise SystemExit(EXIT_COORDINATES_SCALED) from exc
 
 
 if __name__ == "__main__":

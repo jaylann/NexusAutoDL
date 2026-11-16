@@ -1,0 +1,50 @@
+# Vortex / Wabbajack versions worth checking on the test VM, oldest first.
+# See "Older versions" in RUNBOOK.md: one VM checkpoint per line, then
+#
+#   pwsh tools/e2e/update_apps.ps1 -VortexVersion <vortex> [-WabbajackVersion <wabbajack>]
+#   python tools/e2e/run_e2e.py --flow <flows> --label <label>
+#
+# Not run yet. Version numbers are the ones winget offers (NexusMods.Vortex,
+# WabbajackTools.Wabbajack) as of 2026-11; which dialog each Vortex shows is
+# read from its source history and still has to be confirmed on the VM.
+
+[[set]]
+label = "vortex-1.13.7"
+vortex = "1.13.7"
+flows = ["vortex"]
+expect = "old dialog: orange Download button"
+
+[[set]]
+label = "vortex-1.16.8"
+vortex = "1.16.8"
+flows = ["vortex"]
+expect = "last 1.x; Download manually dialog exists since 2025-08"
+
+[[set]]
+label = "vortex-2.0.2"
+vortex = "2.0.2"
+flows = ["vortex"]
+expect = "first 2.x"
+
+[[set]]
+label = "vortex-2.6.3"
+vortex = "2.6.3"
+flows = ["vortex"]
+expect = "after the 2026-08 restyle of the free-download dialog"
+
+[[set]]
+label = "vortex-2.10.1"
+vortex = "2.10.1"
+flows = ["vortex"]
+expect = "latest stable when this list was written"
+
+[[set]]
+label = "wabbajack-4.0.5.1"
+wabbajack = "4.0.5.1"
+flows = ["wabbajack"]
+expect = "oldest Wabbajack winget still offers"
+
+[[set]]
+label = "latest"
+flows = ["vortex", "website", "wabbajack"]
+expect = "whatever update_apps.ps1 installs without a pin"

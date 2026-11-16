@@ -1,27 +1,43 @@
 """Aggregate detection scorer for cross-branch comparison.
 
 Runs every case in ``tests/fixtures/detection/cases.json`` through the live
-``ButtonDetector`` and prints a per-button-type table plus a single overall
-"detection score". Run it on ``main`` and on a detection PR branch, then diff
-the scores to settle "improved detection" claims objectively.
+``ButtonDetector`` and prints per-button-type and per-variant tables plus a
+single overall "detection score". Run it on ``main`` and on a detection PR
+branch, then diff the scores to settle "improved detection" claims objectively.
 
-    python detection_report.py
+    python detection_report.py [--fail-under 0.99] [--source scenario]
 
-Cases whose button type / template / image is unavailable on the current
-branch are reported as skipped (same gating as the pytest suite), so the score
-only reflects cases this branch can actually run.
+``--fail-under`` exits non-zero when the score drops below the bar, overall or
+for one UI generation on its own (``meta.ui_generation``: the older Vortex and
+website designs must not hide behind the larger set of new ones), so the
+report can double as a regression gate. Cases whose button type / template /
+image is unavailable on the current branch are reported as skipped (same
+gating as the pytest suite), so the score only reflects cases this branch can
+actually run.
+
+``--source scenario`` scores only cases whose ``meta.source`` matches (e.g. the
+ones ``tools/generate_scenarios.py`` just produced on the display rig).
+
+Cases marked ``known_gap`` are buttons the detector does not find, each with
+its reason in the manifest. They are listed on their own and left out of the
+recall, so the score stays a regression gate, but a detection in the wrong
+place there counts as a false positive.
 """
 
 from __future__ import annotations
 
+import argparse
+import time
 from dataclasses import dataclass, field
+from typing import Any
 
-from models import AppConfig, ButtonType
+from models import AppConfig, ButtonType, DetectionResult
 from services.button_detector import ButtonDetector
 from tests.harness import (
     ASSETS_PATH,
     case_image_path,
-    centroid_error,
+    ground_truth_error,
+    known_gap,
     load_cases,
     read_rgb,
     skip_reason,
@@ -29,30 +45,62 @@ from tests.harness import (
 
 
 @dataclass
-class TypeStats:
-    """Per-button-type tally."""
+class Stats:
+    """Tally for one grouping key (button type or variant)."""
 
     expected: int = 0  # present-cases that should be detected
     detected: int = 0  # present-cases correctly detected
-    errors: list[float] = field(default_factory=list)  # centroid error per hit
+    errors: list[float] = field(default_factory=list)  # px error per hit
     negatives: int = 0  # absent-cases
     false_positives: int = 0  # absent-cases that wrongly detected something
+    latencies_ms: list[float] = field(default_factory=list)
 
     @property
     def mean_error(self) -> float:
         return sum(self.errors) / len(self.errors) if self.errors else 0.0
 
+    @property
+    def mean_latency_ms(self) -> float:
+        return (
+            sum(self.latencies_ms) / len(self.latencies_ms)
+            if self.latencies_ms
+            else 0.0
+        )
 
-def run() -> int:
+
+def _bootstrap_synthetic() -> None:
+    """Regenerate synthetic fixture images when missing or stale (gitignored)."""
+    from tests._generate_synthetic import ensure_fixtures
+
+    ensure_fixtures()
+
+
+def run(fail_under: float | None = None, source: str | None = None) -> int:
+    if source in (None, "synthetic"):
+        _bootstrap_synthetic()
     cases = load_cases()
+    if source is not None:
+        cases = [c for c in cases if c.get("meta", {}).get("source") == source]
     if not cases:
-        print("No cases found in cases.json. Run: python -m tests._generate_synthetic")
+        if source:
+            print(
+                f"No cases with meta.source={source!r} in cases.json (scenario "
+                "cases come from tools/generate_scenarios.py --append-to-cases)."
+            )
+        else:
+            print(
+                "No cases found in cases.json. Run: python -m tests._generate_synthetic"
+            )
         return 1
 
     detector = ButtonDetector(ASSETS_PATH)
     defaults = AppConfig()
 
-    stats: dict[str, TypeStats] = {}
+    by_type: dict[str, Stats] = {}
+    by_variant: dict[str, Stats] = {}
+    by_generation: dict[str, Stats] = {}
+    by_source: dict[str, Stats] = {}
+    gaps: list[tuple[str, str, str]] = []  # (image, button type, outcome)
     skipped = 0
 
     for case in cases:
@@ -62,70 +110,151 @@ def run() -> int:
             continue
 
         button_type = ButtonType(case["button_type"])
-        st = stats.setdefault(button_type.value, TypeStats())
+        variant = str(case.get("meta", {}).get("variant", "?"))
+        generation = str(case.get("meta", {}).get("ui_generation", "new"))
+        source = str(case.get("meta", {}).get("source", "?"))
         img = read_rgb(case_image_path(case))
+
+        start = time.perf_counter()
         result = detector.detect(
             img,
             button_type,
             min_matches=int(case.get("min_matches", defaults.min_matches)),
             ratio=float(case.get("ratio", defaults.ratio_threshold)),
         )
+        elapsed_ms = (time.perf_counter() - start) * 1000.0
 
-        if case["expect"] == "absent":
-            st.negatives += 1
+        gap_outcome = _gap_outcome(case, result) if known_gap(case) else None
+        if gap_outcome is not None:
+            gaps.append((case["image"], button_type.value, gap_outcome))
+
+        for st in (
+            by_type.setdefault(button_type.value, Stats()),
+            by_variant.setdefault(variant, Stats()),
+            by_generation.setdefault(generation, Stats()),
+            by_source.setdefault(source, Stats()),
+        ):
+            st.latencies_ms.append(elapsed_ms)
+            if case["expect"] == "absent":
+                st.negatives += 1
+                if result is not None:
+                    st.false_positives += 1
+                continue
+            if gap_outcome is not None:
+                # Not part of the recall; a wrong place is still a wrong click.
+                if gap_outcome == _GAP_WRONG_PLACE:
+                    st.false_positives += 1
+                continue
+            st.expected += 1
             if result is not None:
-                st.false_positives += 1
-            continue
+                error = ground_truth_error((result.x, result.y), case)
+                if error <= float(case["tolerance_px"]):
+                    st.detected += 1
+                    st.errors.append(error)
 
-        # present
-        st.expected += 1
-        if result is not None:
-            within = centroid_error((result.x, result.y), case["point"]) <= float(
-                case["tolerance_px"]
+    print("By button type:")
+    _print_table(by_type)
+    print()
+    print("By variant:")
+    _print_table(by_variant)
+    print()
+    print("By UI generation:")
+    _print_table(by_generation)
+    print()
+    print("By source (real = a screenshot of the real app):")
+    _print_table(by_source)
+    if gaps:
+        print()
+        print("Known gaps (not part of the score, reasons in cases.json):")
+        for image, type_name, outcome in gaps:
+            print(f"  {image:<44}{type_name:<10}{outcome}")
+
+    score = _print_score(by_type, skipped)
+    if fail_under is None:
+        return 0
+    failed = False
+    if score < fail_under:
+        print(f"FAIL: score {score:.3f} < required {fail_under:.3f}")
+        failed = True
+    for generation, stats in sorted(by_generation.items()):
+        generation_score = _score(stats.detected, stats.expected, stats.false_positives)
+        if stats.expected and generation_score < fail_under:
+            print(
+                f"FAIL: {generation} designs score {generation_score:.3f} "
+                f"< required {fail_under:.3f}"
             )
-            if within:
-                st.detected += 1
-                st.errors.append(centroid_error((result.x, result.y), case["point"]))
-
-    _print_table(stats, skipped)
-    return 0
+            failed = True
+    return 1 if failed else 0
 
 
-def _print_table(stats: dict[str, TypeStats], skipped: int) -> None:
-    header = f"{'button_type':<14}{'detected':>12}{'mean_err_px':>14}{'false_pos':>12}"
+_GAP_MISSED = "missed"
+_GAP_WRONG_PLACE = "DETECTED IN THE WRONG PLACE"
+_GAP_CLOSED = "found now: remove known_gap from the case"
+
+
+def _gap_outcome(case: dict[str, Any], result: DetectionResult | None) -> str:
+    """What the detector did on a known-gap case."""
+    if result is None:
+        return _GAP_MISSED
+    error = ground_truth_error((result.x, result.y), case)
+    return _GAP_CLOSED if error <= float(case["tolerance_px"]) else _GAP_WRONG_PLACE
+
+
+def _score(detected: int, expected: int, false_positives: int) -> float:
+    """Recall penalised by false positives, in [0, 1]."""
+    recall = detected / expected if expected else 0.0
+    total = expected + false_positives
+    return max(0.0, recall - (false_positives / total if total else 0.0))
+
+
+def _print_table(stats: dict[str, Stats]) -> None:
+    header = (
+        f"{'group':<18}{'detected':>10}{'mean_err_px':>13}"
+        f"{'false_pos':>11}{'negatives':>11}{'mean_ms':>9}"
+    )
     print(header)
     print("-" * len(header))
-
-    total_detected = total_expected = total_fp = 0
-    all_errors: list[float] = []
-
     for name in sorted(stats):
         st = stats[name]
-        total_detected += st.detected
-        total_expected += st.expected
-        total_fp += st.false_positives
-        all_errors.extend(st.errors)
         ratio = f"{st.detected}/{st.expected}" if st.expected else "-"
         mean = f"{st.mean_error:.1f}" if st.errors else "-"
-        print(f"{name:<14}{ratio:>12}{mean:>14}{st.false_positives:>12}")
+        print(
+            f"{name:<18}{ratio:>10}{mean:>13}{st.false_positives:>11}"
+            f"{st.negatives:>11}{st.mean_latency_ms:>9.0f}"
+        )
 
-    print("-" * len(header))
+
+def _print_score(by_type: dict[str, Stats], skipped: int) -> float:
+    total_detected = sum(st.detected for st in by_type.values())
+    total_expected = sum(st.expected for st in by_type.values())
+    total_fp = sum(st.false_positives for st in by_type.values())
+    all_errors = [e for st in by_type.values() for e in st.errors]
+
+    print("-" * 72)
     overall_ratio = f"{total_detected}/{total_expected}" if total_expected else "-"
     overall_mean = f"{sum(all_errors) / len(all_errors):.1f}" if all_errors else "-"
-    print(f"{'TOTAL':<14}{overall_ratio:>12}{overall_mean:>14}{total_fp:>12}")
+    print(f"TOTAL: {overall_ratio} detected, mean error {overall_mean}px")
 
-    # Detection score: recall penalised by false positives, in [0, 1].
     recall = total_detected / total_expected if total_expected else 0.0
-    fp_penalty = (
-        total_fp / (total_expected + total_fp) if (total_expected + total_fp) else 0.0
-    )
-    score = max(0.0, recall - fp_penalty)
+    score = _score(total_detected, total_expected, total_fp)
     print()
     print(
         f"Detection score: {score:.3f}  "
         f"(recall {recall:.3f}, false positives {total_fp}, skipped cases {skipped})"
     )
+    return score
 
 
 if __name__ == "__main__":
-    raise SystemExit(run())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--fail-under",
+        type=float,
+        default=None,
+        help="exit non-zero if the detection score is below this value",
+    )
+    parser.add_argument(
+        "--source", default=None, help="only cases whose meta.source matches"
+    )
+    args = parser.parse_args()
+    raise SystemExit(run(args.fail_under, args.source))
