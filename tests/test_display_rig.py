@@ -1,17 +1,22 @@
 """Cross-platform tests for the display-rig helpers.
 
 The rig itself only runs on Windows (``.github/workflows/windows-displays.yml``);
-these cover its pure logic: topology parsing/matching and the label-integrity
-coverage gate in ``tools/generate_scenarios.py``.
+these cover its pure logic: topology parsing/matching, the label-integrity
+coverage gate in ``tools/generate_scenarios.py``, the check that the app sees
+the physical layout, and the reconciliation of logged with received clicks.
 """
 
 from __future__ import annotations
 
+from typing import Any, ClassVar
+
 import numpy as np
 import pytest
 
+from tools.ci.display_report import check_app_view
 from tools.ci.topology import MonitorSpec, format_topology, match_rects, parse_topology
-from tools.generate_scenarios import _coverage, _hex_to_rgb
+from tools.e2e_click_check import logged_clicks, unseen_clicks
+from tools.generate_scenarios import _coverage, _frame_coverage, _hex_to_rgb
 
 
 class TestParseTopology:
@@ -74,7 +79,7 @@ class TestCoverageGate:
     """A window sized in the wrong DPI space must fail the label gate."""
 
     BG = "#1e1e2e"
-    PHYS = {"left": 0, "top": 0, "width": 300, "height": 200}
+    PHYS: ClassVar[dict[str, int]] = {"left": 0, "top": 0, "width": 300, "height": 200}
 
     def _screen(self) -> np.ndarray:
         return np.zeros((200, 300, 3), dtype=np.uint8)
@@ -105,3 +110,82 @@ class TestCoverageGate:
         img[:, :300] = _hex_to_rgb(self.BG)  # the left monitor at x=-300
         phys = {"left": -300, "top": 0, "width": 300, "height": 200}
         assert _coverage(img, phys, -300, 0, self.BG, None) == pytest.approx(1.0)
+
+    def test_per_monitor_frame(self) -> None:
+        # The scenario generator checks one monitor's own frame image.
+        frame = MonitorSpec(300, 200, -300, 0, None)
+        img = self._screen()
+        img[:, :] = _hex_to_rgb(self.BG)
+        assert _frame_coverage(img, frame, self.BG, None) == pytest.approx(1.0)
+        img[:, 200:] = 0
+        assert _frame_coverage(img, frame, self.BG, None) == pytest.approx(2 / 3)
+
+
+class TestAppView:
+    """The app must see the physical layout, or every click is scaled wrong."""
+
+    TOPOLOGY = "1920x1080@0,0:150;1366x768@1920,0:100"  # issue #23's setup
+
+    def _view(self, **overrides: Any) -> dict[str, Any]:
+        view: dict[str, Any] = {
+            "dpi_awareness_before": 0,
+            "dpi_awareness_after": 2,
+            "app_monitors": [
+                {"x": 0, "y": 0, "width": 1920, "height": 1080},
+                {"x": 1920, "y": 0, "width": 1366, "height": 768},
+            ],
+            "app_frames": [
+                {"index": 0, "left": 0, "top": 0, "width": 1920, "height": 1080},
+                {"index": 1, "left": 1920, "top": 0, "width": 1366, "height": 768},
+            ],
+        }
+        view.update(overrides)
+        return view
+
+    def test_physical_layout_passes(self) -> None:
+        assert check_app_view(self._view(), parse_topology(self.TOPOLOGY)) == []
+
+    def test_logical_monitor_bounds_fail(self) -> None:
+        # What issue #23's log shows: the 150 % primary reported as 1280x720.
+        view = self._view(
+            app_monitors=[
+                {"x": 0, "y": 0, "width": 1280, "height": 720},
+                {"x": 1920, "y": 0, "width": 1366, "height": 768},
+            ]
+        )
+        problems = check_app_view(view, parse_topology(self.TOPOLOGY))
+        assert problems == [
+            "app monitor list: missing monitor 1920x1080@0,0:150",
+            "app monitor list: unexpected monitor 1280x720@0,0",
+        ]
+
+    def test_unaware_process_fails(self) -> None:
+        problems = check_app_view(
+            self._view(dpi_awareness_after=0), parse_topology(self.TOPOLOGY)
+        )
+        assert problems == ["app process DPI awareness is 0, wanted 2 (per-monitor)"]
+
+
+class TestClickReconciliation:
+    """Every click the app logs must have been received by a target window."""
+
+    LOG = (
+        "13:17:08 | INFO     | click:74 - Clicked at (3178, 800)\n"
+        "13:17:08 | DEBUG    | capture_frames:88 - Captured 2 frame(s)\n"
+        "13:17:14 | INFO     | click:74 - Clicked at (-959, 527)\n"
+    )
+
+    def test_parses_logged_clicks_in_order(self) -> None:
+        assert logged_clicks(self.LOG) == [[3178, 800], [-959, 527]]
+
+    def test_all_received(self) -> None:
+        received = [[-959, 527], [3178, 801]]  # any order, rounding slack
+        assert unseen_clicks(logged_clicks(self.LOG), received) == []
+
+    def test_click_outside_every_window_is_unseen(self) -> None:
+        assert unseen_clicks(logged_clicks(self.LOG), [[-959, 527]]) == [[3178, 800]]
+
+    def test_one_received_click_matches_one_logged_click(self) -> None:
+        # The app clicked the same point twice; the target got it once.
+        logged = [[100, 100], [100, 100]]
+        assert unseen_clicks(logged, [[100, 100]]) == [[100, 100]]

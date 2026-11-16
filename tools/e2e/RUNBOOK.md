@@ -121,7 +121,8 @@ For each flow, `run_e2e.py`:
 Results land in `e2e-results/<timestamp>/`:
 
 - `summary.json` with versions and pass/fail per flow,
-- for each flow, `app.log`, debug `frames/`, and on failure `final_capture.png`.
+- for each flow, `app.log`, debug `frames/`, and on failure one raw capture per monitor
+  (`final_capture_m0.png`, `final_capture_m1.png`, ...).
 
 The script deletes the downloads afterwards (unless `--keep-downloads`), so you can run it again
 right away. Run it twice in a row once, to prove the cleanup works. Once a flow needs no hands,
@@ -135,8 +136,8 @@ permanent test:
 1. Leave the failing screen as it is. Then run
    `python tools/capture_fixtures.py --label --prefix <flow>-<date>` and click the button's
    centre in the preview.
-2. Or take `final_capture.png` and add a `cases.json` entry by hand (`point` = the button
-   centre in image pixels).
+2. Or take the `final_capture_m<index>.png` of the monitor that shows the button and add a
+   `cases.json` entry by hand (`point` = the button centre in that image's pixels).
 3. **Before committing, check the image for the account name and any other personal data.**
    Crop or blur it, or don't commit the image.
 4. Commit the PNG and its `cases.json` entry under `tests/fixtures/detection/real/`.

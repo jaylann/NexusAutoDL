@@ -20,11 +20,12 @@ stays importable everywhere (lint, type checks); calling a helper there raises.
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import sys
 from ctypes import wintypes
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from tools.ci.topology import SCALE_STEPS
 
@@ -254,7 +255,7 @@ def session_info() -> dict[str, Any]:
 
     user32.OpenInputDesktop.restype = ctypes.c_void_p
     hdesk = user32.OpenInputDesktop(0, False, _DESKTOP_READOBJECTS)
-    desktop: Optional[str] = None
+    desktop: str | None = None
     if hdesk:
         buf = ctypes.create_unicode_buffer(256)
         needed = wintypes.DWORD()
@@ -283,15 +284,14 @@ def display_devices() -> list[dict[str, Any]]:
     while True:
         try:
             dev = win32api.EnumDisplayDevices(None, index, 0)
-        except Exception:  # pywin32 raises once the index runs past the end
+        except win32api.error:  # raised once the index runs past the end
             break
         index += 1
         monitor_string = monitor_id = ""
-        try:
+        # An adapter without a monitor attached raises; its strings stay empty.
+        with contextlib.suppress(win32api.error):
             mon = win32api.EnumDisplayDevices(dev.DeviceName, 0, 0)
             monitor_string, monitor_id = mon.DeviceString, mon.DeviceID
-        except Exception:
-            pass
         devices.append(
             {
                 "name": dev.DeviceName,

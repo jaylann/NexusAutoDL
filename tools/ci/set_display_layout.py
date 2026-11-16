@@ -31,7 +31,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from tools.ci.topology import MonitorSpec, match_rects, parse_topology  # noqa: E402
+from tools.ci.topology import MonitorSpec, match_rects, parse_topology
 
 # Adapter / monitor strings the Virtual Display Driver reports (adapter "Virtual
 # Display Driver", monitor "VDD by MTT", hardware id ...MttVDD / MTT1337).

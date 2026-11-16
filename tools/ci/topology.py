@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 # Scale steps Windows offers (Settings > Display > Scale).
 SCALE_STEPS: tuple[int, ...] = (
@@ -44,13 +43,13 @@ class MonitorSpec:
     height: int
     x: int
     y: int
-    scale: Optional[int] = None  # percent; None = leave as is
+    scale: int | None = None  # percent; None = leave as is
 
     @property
     def is_primary(self) -> bool:
         return self.x == 0 and self.y == 0
 
-    def overlaps(self, other: "MonitorSpec") -> bool:
+    def overlaps(self, other: MonitorSpec) -> bool:
         return (
             self.x < other.x + other.width
             and other.x < self.x + self.width

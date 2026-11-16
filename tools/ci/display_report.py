@@ -2,19 +2,21 @@
 
 Windows-only. Records, in order:
 
-1. DPI awareness and win32 monitor bounds *before* anything makes the process
-   DPI aware -- exactly what ``app.py`` gets from
-   ``WindowManager.get_all_monitors()`` -- and the capture region
-   ``ScreenCapture`` derives from them;
+1. the app's own view, taken the way ``app.py`` takes it: DPI awareness on
+   entry, the monitors ``WindowManager.get_all_monitors()`` returns, the frames
+   ``ScreenCapture`` will grab, and the awareness afterwards;
 2. the interactive-session check (capture and clicks need a real desktop);
-3. after switching to per-monitor awareness: win32 bounds, per-monitor scale,
-   MSS monitors, GDI devices and DisplayConfig sources;
+3. win32 bounds, per-monitor scale, MSS monitors, GDI devices and DisplayConfig
+   sources;
 4. a paint test: a coloured borderless window per monitor, captured through MSS,
    proving windows render on every monitor and capture sees them.
 
 Writes ``report.json`` + ``paint_test.png`` to ``--out``. With ``--expect`` it
-exits 1 unless the desktop is interactive, the paint test passes and the MSS
-monitors / scales match the topology (syntax: ``tools/ci/topology.py``).
+exits 1 unless the desktop is interactive, the paint test passes, the MSS
+monitors / scales match the topology (syntax: ``tools/ci/topology.py``), and the
+app's monitors and frames are that same physical layout with the process
+per-monitor DPI aware. The last part is what catches a DPI regression: an
+unaware process reports a 1920x1080 monitor at 150 % as 1280x720.
 
     python tools/ci/display_report.py --out artifacts/report --expect "1920x1080@0,0:100"
 """
@@ -30,7 +32,11 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from tools.ci.topology import match_rects, parse_topology  # noqa: E402
+from tools.ci.topology import match_rects, parse_topology
+
+# DPI_AWARENESS_PER_MONITOR_AWARE, as tools.win_display.process_dpi_awareness
+# reports it.
+_PER_MONITOR_AWARE = 2
 
 _PAINT_COLORS: tuple[tuple[int, int, int], ...] = (
     (220, 40, 40),
@@ -49,23 +55,22 @@ def _win32_monitors() -> list[list[int]]:
 
 
 def _app_view() -> dict[str, Any]:
-    """What app.py computes, captured before this process becomes DPI aware."""
+    """What app.py computes at startup. Must run before anything else here
+    touches win32 or mss, so the process starts as unaware as the app does."""
     from tools.win_display import process_dpi_awareness
 
-    awareness = process_dpi_awareness()
-    rects = _win32_monitors()
+    awareness_before = process_dpi_awareness()
 
     from services.screen_capture import ScreenCapture
     from services.window_manager import WindowManager
 
     monitors = WindowManager.get_all_monitors()
-    capture = ScreenCapture(monitors)  # creates mss -> process becomes DPI aware
+    capture = ScreenCapture(monitors)
     return {
-        "dpi_awareness_before": awareness,
-        "win32_monitors_unaware": rects,
+        "dpi_awareness_before": awareness_before,
         "app_monitors": [m.model_dump() for m in monitors],
-        "app_capture_region": capture.v_monitor,
-        "dpi_awareness_after_mss": process_dpi_awareness(),
+        "app_frames": [f.model_dump() for f in capture.desktop.frames],
+        "dpi_awareness_after": process_dpi_awareness(),
     }
 
 
@@ -157,9 +162,36 @@ def build_report(out_dir: Path) -> dict[str, Any]:
 
     try:
         report["paint_test"] = _paint_test(mss_monitors, out_dir)
-    except Exception as exc:  # report, don't crash: this is a diagnostic
+    # Recorded as a failed paint test: the report must still be written.
+    except Exception as exc:  # noqa: BLE001
         report["paint_test"] = [{"ok": False, "error": repr(exc)}]
     return report
+
+
+def check_app_view(app_view: dict[str, Any], expected: list[Any]) -> list[str]:
+    """Problems with the app's own view of a known physical layout.
+
+    Pure (no win32), so it is unit-tested on every platform.
+    """
+    problems: list[str] = []
+    if app_view["dpi_awareness_after"] != _PER_MONITOR_AWARE:
+        problems.append(
+            f"app process DPI awareness is {app_view['dpi_awareness_after']}, "
+            f"wanted {_PER_MONITOR_AWARE} (per-monitor)"
+        )
+    app_monitors = [
+        {"left": m["x"], "top": m["y"], "width": m["width"], "height": m["height"]}
+        for m in app_view["app_monitors"]
+    ]
+    problems.extend(
+        f"app monitor list: {problem}"
+        for problem in match_rects(expected, app_monitors)
+    )
+    problems.extend(
+        f"app capture frames: {problem}"
+        for problem in match_rects(expected, app_view["app_frames"])
+    )
+    return problems
 
 
 def check(report: dict[str, Any], expect: str) -> list[str]:
@@ -173,6 +205,7 @@ def check(report: dict[str, Any], expect: str) -> list[str]:
 
     expected = parse_topology(expect)
     problems.extend(match_rects(expected, report["mss_monitors"]))
+    problems.extend(check_app_view(report["app_view"], expected))
     for spec in expected:
         if spec.scale is None:
             continue

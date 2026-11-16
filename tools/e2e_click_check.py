@@ -23,32 +23,38 @@ Modes:
 
 * ``web``    -- website / Wabbajack buttons on every monitor (non-Vortex mode).
 * ``vortex`` -- needs 2+ monitors. The app finds the ``Vortex`` window,
-  positions + maximises it on monitor 1 itself (``WindowManager.position_vortex``),
-  searches inside its rect, then clicks the website button on the primary.
+  positions + maximises it on the first secondary monitor itself
+  (``WindowManager.position_vortex``), searches inside its rect, then clicks the
+  website button on the primary.
 * ``both``   -- web, then vortex (skipped with a note on a single monitor).
 
     python tools/e2e_click_check.py --mode both --rounds 3 --out artifacts/click
 
-Exit codes: 0 all clicks inside their buttons, 1 a click missed (or a stray
-click), 2 incomplete (timeout or the app exited early).
+Every click the app logs (``Clicked at (x, y)``) is reconciled with the clicks
+the target received. A logged click the target never saw landed outside its
+windows, and fails the phase like a miss.
+
+Exit codes: 0 all clicks inside their buttons, 1 a click missed (or a stray or
+unseen click), 2 incomplete (timeout or the app exited early).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from models import ButtonType  # noqa: E402
-from utils.platform import IS_WINDOWS  # noqa: E402
+from models import ButtonType
+from utils.platform import IS_WINDOWS
 
 # Templates the default (non-legacy) app mode matches, as in generate_scenarios.
 _TEMPLATES: dict[ButtonType, str] = {
@@ -64,7 +70,7 @@ _WEB_POSITIONS: tuple[tuple[float, float], ...] = (
     (0.70, 0.25),
 )
 # Kept central: the app only searches the inner part of the Vortex window
-# (``Scanner._handle_vortex_state`` pads its bbox by up to ~20 % per side).
+# (``services.geometry.compute_search_bbox`` insets its rect).
 _VORTEX_POSITIONS: tuple[tuple[float, float], ...] = (
     (0.50, 0.50),
     (0.42, 0.45),
@@ -74,6 +80,11 @@ _VORTEX_POSITIONS: tuple[tuple[float, float], ...] = (
 _PAGE_BG = "#20232a"
 _VORTEX_BG = "#2b2d42"
 _ADVANCE_MS = 250  # pause between a click and showing the next button
+
+# The app's own record of a click (``ClickController.click``).
+_CLICK_LOG = re.compile(r"Clicked at \((-?\d+), (-?\d+)\)")
+# Tk reports the pointer position the click arrived at; allow rounding slack.
+_CLICK_MATCH_PX = 2
 
 
 @dataclass
@@ -92,16 +103,17 @@ class Step:
 class ClickRecord:
     """Where a click landed relative to the button that was showing."""
 
-    step: Optional[int]
-    kind: Optional[str]
-    button_type: Optional[str]
-    monitor: Optional[int]
-    dpi_scale: Optional[float]
-    button_rect: Optional[list[int]]  # x1, y1, x2, y2 (screen, physical px)
+    step: int | None
+    kind: str | None
+    button_type: str | None
+    monitor: int | None
+    dpi_scale: float | None
+    button_rect: list[int] | None  # x1, y1, x2, y2 (screen, physical px)
     click: list[int]  # x, y (screen, physical px)
     inside: bool
-    offset: Optional[list[int]] = None  # click - button centre
+    offset: list[int] | None = None  # click - button centre
     note: str = ""
+    at: float = 0.0  # seconds since the phase started
 
 
 @dataclass
@@ -110,14 +122,49 @@ class PhaseResult:
     steps: int
     clicks: list[ClickRecord] = field(default_factory=list)
     completed: bool = False
-    app_exit_code: Optional[int] = None
+    app_exit_code: int | None = None
     skipped: str = ""
+    app_clicks: int = 0  # clicks the app logged
+    # Logged clicks the target never received: they landed outside its windows.
+    unseen_app_clicks: list[list[int]] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
         if self.skipped:
             return True
-        return self.completed and all(c.inside for c in self.clicks)
+        return (
+            self.completed
+            and all(c.inside for c in self.clicks)
+            and not self.unseen_app_clicks
+        )
+
+
+def logged_clicks(log_text: str) -> list[list[int]]:
+    """Screen points the app logged as clicked, in order."""
+    return [[int(x), int(y)] for x, y in _CLICK_LOG.findall(log_text)]
+
+
+def unseen_clicks(
+    logged: list[list[int]], received: list[list[int]]
+) -> list[list[int]]:
+    """Logged clicks with no matching received click (each one matched once)."""
+    remaining = list(received)
+    unseen: list[list[int]] = []
+    for click in logged:
+        hit = next(
+            (
+                r
+                for r in remaining
+                if abs(r[0] - click[0]) <= _CLICK_MATCH_PX
+                and abs(r[1] - click[1]) <= _CLICK_MATCH_PX
+            ),
+            None,
+        )
+        if hit is None:
+            unseen.append(click)
+        else:
+            remaining.remove(hit)
+    return unseen
 
 
 class Target:
@@ -138,8 +185,10 @@ class Target:
         self.steps = steps
         self.current = 0
         self.clicks: list[ClickRecord] = []
+        self.started_at = time.monotonic()
+        self._first_shown = False
         self._photo: Any = None  # keep a reference or Tk drops the image
-        self._item: Optional[int] = None
+        self._item: int | None = None
         self._item_canvas: Any = None
         self._images: dict[tuple[ButtonType, float], Any] = {}
 
@@ -184,7 +233,7 @@ class Target:
 
     def _make_vortex_window(self) -> None:
         # Start it un-maximised on a non-primary monitor; the app is expected to
-        # move + maximise it onto its monitors[1] itself.
+        # move + maximise it onto the first secondary monitor itself.
         primary = self._primary_index()
         other = next(i for i in range(len(self.monitors)) if i != primary)
         mon = self.monitors[other]
@@ -237,6 +286,7 @@ class Target:
 
     def show_current(self) -> None:
         """Draw the current step's button (no-op once all steps are done)."""
+        self._first_shown = True
         self._clear()
         if self.current >= len(self.steps):
             return
@@ -268,7 +318,7 @@ class Target:
         self._item = None
         self._item_canvas = None
 
-    def _current_rect(self) -> Optional[list[int]]:
+    def _current_rect(self) -> list[int] | None:
         if self._item is None:
             return None
         canvas = self._item_canvas
@@ -278,13 +328,33 @@ class Target:
 
     def _on_click(self, event: Any) -> None:
         click = [int(event.x_root), int(event.y_root)]
+        at = round(time.monotonic() - self.started_at, 2)
         rect = self._current_rect()
         if rect is None or self.current >= len(self.steps):
+            # No button is showing: before the first one, in the pause between
+            # two, or after the last.
+            if not self._first_shown:
+                when = "startup"
+            elif self.done:
+                when = "after"
+            else:
+                when = "gap"
             self.clicks.append(
                 ClickRecord(
-                    None, None, None, None, None, None, click, False, None, "stray"
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    click,
+                    False,
+                    None,
+                    f"stray:{when}",
+                    at,
                 )
             )
+            print(f"  STRAY click at {click} ({when}, t={at}s)")
             return
 
         step = self.steps[self.current]
@@ -301,6 +371,7 @@ class Target:
                 click=click,
                 inside=inside,
                 offset=[click[0] - centre[0], click[1] - centre[1]],
+                at=at,
             )
         )
         print(
@@ -405,6 +476,13 @@ def run_phase(
             result.app_exit_code = app.returncode
             result.clicks = target.clicks
             target.close()
+
+    # The app has exited, so its log is complete.
+    logged = logged_clicks(
+        (out / "app.log").read_text(encoding="utf-8", errors="replace")
+    )
+    result.app_clicks = len(logged)
+    result.unseen_app_clicks = unseen_clicks(logged, [c.click for c in result.clicks])
     return result
 
 
@@ -478,13 +556,18 @@ def main() -> int:
         misses = [c for c in r.clicks if not c.inside]
         state = "OK" if r.ok else ("INCOMPLETE" if not r.completed else "MISSED")
         print(
-            f"  {r.mode:<6} {state}: {good}/{r.steps} on target, {len(misses)} missed/stray"
+            f"  {r.mode:<6} {state}: {good}/{r.steps} on target, "
+            f"{len(misses)} missed/stray, {r.app_clicks} clicks logged by the app, "
+            f"{len(r.unseen_app_clicks)} of them never received"
         )
         for c in misses:
             print(
-                f"     {c.note or 'miss'} step={c.step} click={c.click} rect={c.button_rect} offset={c.offset}"
+                f"     {c.note or 'miss'} t={c.at}s step={c.step} click={c.click} "
+                f"rect={c.button_rect} offset={c.offset}"
             )
-        if misses:
+        for click in r.unseen_app_clicks:
+            print(f"     unseen: the app clicked {click}, outside every target window")
+        if misses or r.unseen_app_clicks:
             exit_code = max(exit_code, 1)
         if not r.completed:
             exit_code = max(exit_code, 2)

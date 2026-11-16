@@ -36,12 +36,12 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from utils.platform import IS_WINDOWS  # noqa: E402
+from utils.platform import IS_WINDOWS
 
 FLOWS: tuple[str, ...] = ("vortex", "website", "wabbajack")
 
@@ -125,7 +125,7 @@ def wait_for_files(
     return False, new_complete_files(folder, before), f"timeout after {timeout:.0f}s"
 
 
-def exe_version(path: Optional[str]) -> Optional[str]:
+def exe_version(path: str | None) -> str | None:
     """ProductVersion of a Windows executable (None if unknown)."""
     if not path or not Path(path).exists():
         return None
@@ -140,13 +140,14 @@ def exe_version(path: Optional[str]) -> Optional[str]:
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
         return out.stdout.strip() or None
     except (OSError, subprocess.SubprocessError):
         return None
 
 
-def _git_revision() -> Optional[str]:
+def _git_revision() -> str | None:
     try:
         out = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
@@ -154,6 +155,7 @@ def _git_revision() -> Optional[str]:
             capture_output=True,
             text=True,
             timeout=10,
+            check=False,
         )
         return out.stdout.strip() or None
     except (OSError, subprocess.SubprocessError):
@@ -165,6 +167,7 @@ def _process_running(image_name: str) -> bool:
         ["tasklist", "/FI", f"IMAGENAME eq {image_name}", "/NH"],
         capture_output=True,
         text=True,
+        check=False,
     )
     return image_name.lower() in out.stdout.lower()
 
@@ -192,8 +195,12 @@ def app_command(flow: str, browser: dict[str, Any], frames: Path) -> list[str]:
     return cmd + ["--debug-frame-dir", str(frames), "--verbose"]
 
 
-def save_final_capture(path: Path) -> None:
-    """Raw capture of what NexusAutoDL saw at the end (same pipeline as the app)."""
+def save_final_capture(folder: Path) -> None:
+    """Raw per-monitor captures of what NexusAutoDL saw at the end.
+
+    Uses the app's own pipeline, so each ``final_capture_m<index>.png`` is a
+    frame the detector would have searched and can become a fixture as is.
+    """
     try:
         import cv2
 
@@ -201,8 +208,11 @@ def save_final_capture(path: Path) -> None:
         from services.window_manager import WindowManager
 
         capture = ScreenCapture(WindowManager.get_all_monitors())
-        cv2.imwrite(str(path), cv2.cvtColor(capture.capture(), cv2.COLOR_RGB2BGR))
-    except Exception as exc:  # diagnostics only
+        for captured in capture.capture_frames():
+            path = folder / f"final_capture_m{captured.frame.index}.png"
+            cv2.imwrite(str(path), cv2.cvtColor(captured.image, cv2.COLOR_RGB2BGR))
+    # Diagnostics only: a failed capture must not mask the flow's own result.
+    except Exception as exc:  # noqa: BLE001
         print(f"  could not save final capture: {exc}")
 
 
@@ -247,7 +257,7 @@ def run_flow(
             )
         finally:
             if not ok:
-                save_final_capture(flow_dir / "final_capture.png")
+                save_final_capture(flow_dir)
             if app.poll() is None:
                 app.terminate()
                 try:
@@ -274,7 +284,7 @@ def run_flow(
                 print(f"  could not delete {name}: {exc}")
     if cfg.get("reset"):
         print(f"  reset: {cfg['reset']}")
-        rc = subprocess.run(cfg["reset"], shell=True, cwd=ROOT).returncode
+        rc = subprocess.run(cfg["reset"], shell=True, cwd=ROOT, check=False).returncode
         result["reset_exit_code"] = rc
 
     (flow_dir / "result.json").write_text(
