@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_MONITORS: list[tuple[int, int, int, int]] = [
     (0, 0, 1920, 1080),  # primary
@@ -37,7 +38,7 @@ class MockDisplayState:
     cursor: tuple[int, int] = _DEFAULT_CURSOR
     events: list[tuple] = field(default_factory=list)
 
-    def title_for_handle(self, hwnd: int) -> Optional[str]:
+    def title_for_handle(self, hwnd: int) -> str | None:
         titles = list(self.windows)
         idx = hwnd - _HANDLE_BASE
         return titles[idx] if 0 <= idx < len(titles) else None
@@ -53,8 +54,8 @@ state = MockDisplayState()
 
 
 def configure(
-    monitors: Optional[list[tuple[int, int, int, int]]] = None,
-    windows: Optional[dict[str, tuple[int, int, int, int]]] = None,
+    monitors: list[tuple[int, int, int, int]] | None = None,
+    windows: dict[str, tuple[int, int, int, int]] | None = None,
     cursor: tuple[int, int] = _DEFAULT_CURSOR,
 ) -> None:
     """Point the mocks at a specific display layout (for tests)."""
@@ -72,7 +73,7 @@ def reset() -> None:
 def send_input_mouse(flags: int) -> None:
     """Record a button event at the current cursor position."""
     state.events.append(("mouse", flags, state.cursor))
-    logging.debug(f"[MOCK] send_input_mouse: flags={flags} at {state.cursor}")
+    logger.debug(f"[MOCK] send_input_mouse: flags={flags} at {state.cursor}")
 
 
 class MockWin32API:
@@ -86,12 +87,12 @@ class MockWin32API:
     def SetCursorPos(pos: tuple[int, int]) -> None:
         state.cursor = (int(pos[0]), int(pos[1]))
         state.events.append(("move", state.cursor))
-        logging.debug(f"[MOCK] SetCursorPos: {pos}")
+        logger.debug(f"[MOCK] SetCursorPos: {pos}")
 
     @staticmethod
     def mouse_event(event: int, x: int, y: int, data: int, extra_info: int) -> None:
         state.events.append(("mouse_event", event, state.cursor))
-        logging.debug(f"[MOCK] mouse_event: {event} at ({x}, {y})")
+        logger.debug(f"[MOCK] mouse_event: {event} at ({x}, {y})")
 
     @staticmethod
     def EnumDisplayMonitors(
@@ -130,7 +131,7 @@ class MockWin32GUI:
         title = state.title_for_handle(hwnd)
         if title is not None:
             state.windows[title] = (x, y, x + w, y + h)
-        logging.debug(f"[MOCK] SetWindowPos: hwnd={hwnd} pos=({x},{y}) size=({w},{h})")
+        logger.debug(f"[MOCK] SetWindowPos: hwnd={hwnd} pos=({x},{y}) size=({w},{h})")
 
 
 class MockWin32Con:
@@ -144,16 +145,16 @@ class MockUserDLL:
     """Mock user32.dll."""
 
     @staticmethod
-    def FindWindowW(class_name, window_name: Optional[str]) -> int:
+    def FindWindowW(class_name, window_name: str | None) -> int:
         if window_name:
             handle = state.handle_for_title(window_name)
-            logging.debug(f"[MOCK] FindWindowW: {window_name} -> {handle}")
+            logger.debug(f"[MOCK] FindWindowW: {window_name} -> {handle}")
             return handle
         return 0
 
     @staticmethod
     def ShowWindow(hwnd: int, cmd: int) -> None:
-        logging.debug(f"[MOCK] ShowWindow: hwnd={hwnd} cmd={cmd}")
+        logger.debug(f"[MOCK] ShowWindow: hwnd={hwnd} cmd={cmd}")
 
 
 # Create singleton instances
@@ -171,12 +172,12 @@ def get_mock_user32():
 
 # Export for easy importing
 __all__ = [
-    "win32api",
-    "win32gui",
-    "win32con",
-    "get_mock_user32",
-    "state",
     "configure",
+    "get_mock_user32",
     "reset",
     "send_input_mouse",
+    "state",
+    "win32api",
+    "win32con",
+    "win32gui",
 ]

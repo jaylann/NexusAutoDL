@@ -44,9 +44,9 @@ from typing import Any
 # Repo root importable when run as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from models import ButtonType  # noqa: E402
-from utils.dpi import ensure_dpi_awareness  # noqa: E402
-from utils.platform import IS_WINDOWS  # noqa: E402
+from models import ButtonType
+from utils.dpi import ensure_dpi_awareness
+from utils.platform import IS_WINDOWS
 
 # Button type -> template asset rendered (the one matched in default/non-legacy
 # mode, so captures reflect production behaviour).
@@ -107,6 +107,7 @@ def _render_and_capture(
     Returns the captured image of the frame being rendered on.
     """
     import tkinter as tk
+
     from PIL import ImageTk
 
     win = tk.Toplevel(root)
@@ -261,9 +262,10 @@ def main() -> int:
     awareness = ensure_dpi_awareness()
 
     try:
-        import tkinter as tk  # noqa: F401
+        import tkinter as tk
+
         from PIL import Image, ImageTk  # noqa: F401
-    except Exception as exc:  # pragma: no cover - Windows-only path
+    except ImportError as exc:  # pragma: no cover - Windows-only path
         print(f"Missing GUI deps (tkinter / Pillow): {exc}")
         return 1
 
@@ -329,7 +331,7 @@ def main() -> int:
 
         # Ground truth in frame-image px: the window covers the monitor, so a
         # button drawn at fraction (fx, fy) sits at that fraction of the frame.
-        point = (int(round(fx * frame.width)), int(round(fy * frame.height)))
+        point = (round(fx * frame.width), round(fy * frame.height))
 
         # tolerance ~ half the button size + margin (Tk renders in physical
         # pixels under per-monitor awareness, so PIL size == captured size)

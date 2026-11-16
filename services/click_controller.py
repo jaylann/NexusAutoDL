@@ -5,11 +5,10 @@ Mouse click control utilities.
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from services.geometry import VirtualDesktop
-from utils.platform import IS_WINDOWS, send_input_mouse, win32api, win32con
 from utils.logger import get_logger
+from utils.platform import IS_WINDOWS, send_input_mouse, win32api, win32con
 
 logger = get_logger(__name__)
 
@@ -54,7 +53,7 @@ class ClickController:
         if target != (x, y):
             logger.debug(f"Clamped click ({x}, {y}) -> {target}")
 
-        original_pos: Optional[tuple[int, int]] = (
+        original_pos: tuple[int, int] | None = (
             win32api.GetCursorPos() if self.restore_cursor else None
         )
 

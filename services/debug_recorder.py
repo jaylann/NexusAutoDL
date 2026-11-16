@@ -5,7 +5,6 @@ Debug frame recording utilities.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple
 
 import cv2
 from numpy import uint8
@@ -69,13 +68,13 @@ class DebugRecorder:
         x2: int = min(int(detection.x + half_w), img_width - 1)
         y2: int = min(int(detection.y + half_h), img_height - 1)
 
-        color: Tuple[int, int, int] = (0, 255, 0)
+        color: tuple[int, int, int] = (0, 255, 0)
         cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
         text: str = (
             f"{label} | {detection.button_type.value} | "
             f"conf={detection.confidence:.2f} | matches={detection.num_matches}"
         )
-        text_pos: Tuple[int, int] = (x1, max(15, y1 - 10))
+        text_pos: tuple[int, int] = (x1, max(15, y1 - 10))
         cv2.putText(
             image,
             text,

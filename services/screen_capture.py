@@ -16,7 +16,6 @@ import cv2
 import mss
 import numpy as np
 import numpy.typing as npt
-
 from loguru import logger
 
 from models import Monitor
@@ -37,7 +36,7 @@ class ScreenCapture:
         self,
         monitors: list[Monitor],
         force_primary: bool = False,
-        mss_factory: Callable[[], "mss.base.MSSBase"] = mss.mss,
+        mss_factory: Callable[[], mss.base.MSSBase] = mss.mss,
     ) -> None:
         """
         Initialize screen capture.

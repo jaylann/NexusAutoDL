@@ -5,11 +5,20 @@ Platform helpers for win32 APIs with graceful fallbacks on non-Windows hosts.
 from __future__ import annotations
 
 import sys
+
 from utils.mock_win32 import (
     get_mock_user32,
+)
+from utils.mock_win32 import (
     send_input_mouse as mock_send_input_mouse,
+)
+from utils.mock_win32 import (
     win32api as mock_win32api,
+)
+from utils.mock_win32 import (
     win32con as mock_win32con,
+)
+from utils.mock_win32 import (
     win32gui as mock_win32gui,
 )
 
@@ -69,9 +78,9 @@ else:  # pragma: no cover - exercised implicitly on non-Windows hosts
 
 __all__ = [
     "IS_WINDOWS",
+    "send_input_mouse",
+    "user32",
     "win32api",
     "win32con",
     "win32gui",
-    "user32",
-    "send_input_mouse",
 ]

@@ -10,8 +10,8 @@ from services import window_manager as wm_module
 from services.screen_capture import ScreenCapture
 from tests.fake_mss import FakeMSS
 from tests.test_geometry import LAYOUTS
-from utils.platform import IS_WINDOWS
 from utils import mock_win32
+from utils.platform import IS_WINDOWS
 
 pytestmark = pytest.mark.skipif(IS_WINDOWS, reason="asserts on the mock win32 backend")
 

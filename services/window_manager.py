@@ -6,13 +6,12 @@ from __future__ import annotations
 
 import subprocess
 import time
-from typing import Optional
 
 from models import BoundingBox, BrowserType, Monitor
 from services.geometry import MonitorFrame, VirtualDesktop
 from utils.dpi import ensure_dpi_awareness
-from utils.platform import IS_WINDOWS, user32, win32api, win32gui
 from utils.logger import get_logger
+from utils.platform import IS_WINDOWS, user32, win32api, win32gui
 
 logger = get_logger(__name__)
 
@@ -135,7 +134,7 @@ class WindowManager:
 
         logger.info(f"Window '{window_title}' positioned")
 
-    def get_vortex_bbox(self) -> Optional[BoundingBox]:
+    def get_vortex_bbox(self) -> BoundingBox | None:
         """
         Get Vortex window bounding box.
 

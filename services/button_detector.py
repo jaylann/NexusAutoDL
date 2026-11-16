@@ -6,16 +6,15 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Optional
 
 import cv2
 import numpy as np
 import numpy.typing as npt
 
 from models import (
+    BoundingBox,
     ButtonAssets,
     ButtonType,
-    BoundingBox,
     DetectionResult,
     TemplateCandidate,
 )
@@ -142,15 +141,15 @@ class ButtonDetector:
         """Precompute matching data for every template once."""
 
         def mode_specific(
-            legacy_img: Optional[npt.NDArray[np.uint8]],
-            new_img: Optional[npt.NDArray[np.uint8]],
+            legacy_img: npt.NDArray[np.uint8] | None,
+            new_img: npt.NDArray[np.uint8] | None,
         ) -> list[TemplateCandidate]:
             img = legacy_img if self.use_legacy_buttons else new_img
             name = "legacy" if self.use_legacy_buttons else "new"
             candidate = self._make_candidate(img, name)
             return [candidate] if candidate else []
 
-        def single(img: Optional[npt.NDArray[np.uint8]]) -> list[TemplateCandidate]:
+        def single(img: npt.NDArray[np.uint8] | None) -> list[TemplateCandidate]:
             candidate = self._make_candidate(img, "default")
             return [candidate] if candidate else []
 
@@ -171,9 +170,9 @@ class ButtonDetector:
 
     def _make_candidate(
         self,
-        img: Optional[npt.NDArray[np.uint8]],
+        img: npt.NDArray[np.uint8] | None,
         name: str,
-    ) -> Optional[TemplateCandidate]:
+    ) -> TemplateCandidate | None:
         if img is None:
             return None
         gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
@@ -219,7 +218,7 @@ class ButtonDetector:
     def _estimate_similarity(
         src_pts: npt.NDArray[np.float32],
         dst_pts: npt.NDArray[np.float32],
-    ) -> Optional[tuple[npt.NDArray[np.float64], npt.NDArray[np.uint8]]]:
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint8]] | None:
         """Fit a RANSAC similarity transform mapping template points to scene points."""
         transform, inlier_mask = cv2.estimateAffinePartial2D(
             src_pts,
@@ -236,7 +235,7 @@ class ButtonDetector:
     @staticmethod
     def _validate_transform(
         transform: npt.NDArray[np.float64],
-    ) -> Optional[tuple[float, float]]:
+    ) -> tuple[float, float] | None:
         """Return (scale, rotation_deg) if the transform is plausible, else None."""
         scale = float(math.hypot(transform[0, 0], transform[1, 0]))
         rotation_deg = float(math.degrees(math.atan2(transform[1, 0], transform[0, 0])))
@@ -294,7 +293,7 @@ class ButtonDetector:
         ratio: float,
         offset_x: int,
         offset_y: int,
-    ) -> Optional[DetectionResult]:
+    ) -> DetectionResult | None:
         """Match one template via SIFT + RANSAC-verified similarity transform."""
         if template.desc is None or len(template.kps) == 0:
             return None
@@ -418,10 +417,10 @@ class ButtonDetector:
         button_type: ButtonType,
         offset_x: int,
         offset_y: int,
-    ) -> Optional[DetectionResult]:
+    ) -> DetectionResult | None:
         """Multi-scale normalized cross-correlation fallback."""
         scene_h, scene_w = scene_gray.shape[:2]
-        best: Optional[tuple[float, tuple[int, int], float, int, int]] = None
+        best: tuple[float, tuple[int, int], float, int, int] | None = None
 
         for scale in TM_SCALES:
             sw = max(1, round(template.width * scale))
@@ -479,8 +478,8 @@ class ButtonDetector:
         button_type: ButtonType,
         min_matches: int = 8,
         ratio: float = 0.75,
-        bbox: Optional[BoundingBox] = None,
-    ) -> Optional[DetectionResult]:
+        bbox: BoundingBox | None = None,
+    ) -> DetectionResult | None:
         """
         Detect button in image.
 
@@ -521,10 +520,10 @@ class ButtonDetector:
         gray = cv2.cvtColor(img_to_search, cv2.COLOR_RGB2GRAY)
         kps, des = self.sift.detectAndCompute(gray, mask=None)
 
-        best_result: Optional[DetectionResult] = None
+        best_result: DetectionResult | None = None
         if des is not None and len(kps) > 0:
             for template in template_candidates:
-                result: Optional[DetectionResult] = self._match_sift(
+                result: DetectionResult | None = self._match_sift(
                     template,
                     kps,
                     des,

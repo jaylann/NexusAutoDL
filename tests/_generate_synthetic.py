@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import cv2
 import numpy as np
@@ -286,7 +286,7 @@ def _present_case(
     scale: float,
     tolerance: int,
     variant: str,
-    points: Optional[list[tuple[int, int]]] = None,
+    points: list[tuple[int, int]] | None = None,
     resolution: str = f"{_CANVAS[0]}x{_CANVAS[1]}",
 ) -> dict[str, Any]:
     case: dict[str, Any] = {

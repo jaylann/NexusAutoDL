@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import sys
 from enum import Enum
-from typing import Optional
 
 from utils.logger import get_logger
 
@@ -43,7 +42,7 @@ class DpiAwareness(str, Enum):
     NOT_WINDOWS = "not_windows"
 
 
-_result: Optional[DpiAwareness] = None
+_result: DpiAwareness | None = None
 
 
 def ensure_dpi_awareness() -> DpiAwareness:

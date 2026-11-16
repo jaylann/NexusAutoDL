@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from math import hypot
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import cv2
 import numpy as np
@@ -49,7 +49,7 @@ def read_rgb(path: Path) -> npt.NDArray[np.uint8]:
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
-def parse_button_type(value: str) -> Optional[ButtonType]:
+def parse_button_type(value: str) -> ButtonType | None:
     """Resolve a manifest ``button_type`` string to a ``ButtonType`` or None."""
     try:
         return ButtonType(value)
@@ -82,7 +82,7 @@ def skip_reason(
     case: dict[str, Any],
     fixtures_dir: Path = FIXTURES_DIR,
     assets_path: Path = ASSETS_PATH,
-) -> Optional[str]:
+) -> str | None:
     """Return why a case can't run on this branch, or None if it can.
 
     Cases are skipped (not failed) when the button type is unknown here, its

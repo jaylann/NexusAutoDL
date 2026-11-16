@@ -7,8 +7,8 @@ import pytest
 from services.click_controller import ClickController
 from services.geometry import VirtualDesktop
 from tests.test_geometry import LAYOUTS
-from utils.platform import IS_WINDOWS
 from utils import mock_win32
+from utils.platform import IS_WINDOWS
 
 pytestmark = pytest.mark.skipif(IS_WINDOWS, reason="asserts on the mock win32 backend")
 

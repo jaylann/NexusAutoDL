@@ -8,8 +8,6 @@ win32 imports -- fully unit-testable on any platform.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import BaseModel
 
 from models import BoundingBox, Monitor
@@ -80,7 +78,7 @@ class VirtualDesktop(BaseModel):
         frozen = True
 
     @classmethod
-    def from_mss_monitors(cls, mss_monitors: list[dict[str, int]]) -> "VirtualDesktop":
+    def from_mss_monitors(cls, mss_monitors: list[dict[str, int]]) -> VirtualDesktop:
         """Build from ``mss.monitors`` (index 0 = union, 1.. = physical)."""
         if not mss_monitors:
             raise ValueError("No monitors reported by mss")
@@ -115,7 +113,7 @@ class VirtualDesktop(BaseModel):
             key=lambda f: (f.left, f.top),
         )
 
-    def frame_containing(self, x: int, y: int) -> Optional[MonitorFrame]:
+    def frame_containing(self, x: int, y: int) -> MonitorFrame | None:
         """The monitor containing a virtual-desktop point, if any."""
         for frame in self.frames:
             if frame.contains(x, y):
@@ -128,7 +126,7 @@ class VirtualDesktop(BaseModel):
         y: int,
         inset: int = CLICK_SNAP_INSET_PX,
         max_snap: int = CLICK_SNAP_MAX_PX,
-    ) -> Optional[tuple[int, int]]:
+    ) -> tuple[int, int] | None:
         """Snap a point onto the nearest monitor, or None if too far off.
 
         Points already on a monitor pass through unchanged; points within
@@ -188,7 +186,7 @@ def compute_search_bbox(
     window_rect: BoundingBox,
     frame: MonitorFrame,
     inset: float = VORTEX_BBOX_INSET,
-) -> Optional[BoundingBox]:
+) -> BoundingBox | None:
     """Convert a virtual-desktop window rect into a frame-image search bbox.
 
     Clips to the frame first (maximized windows report rects that overhang

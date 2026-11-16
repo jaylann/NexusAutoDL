@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import pytest
 
 from models import AppConfig, ButtonType, DetectionResult, Monitor, ScanState
@@ -12,8 +10,8 @@ from services import window_manager as wm_module
 from services.screen_capture import ScreenCapture
 from tests.fake_mss import FakeMSS
 from tests.test_geometry import LAYOUTS
-from utils.platform import IS_WINDOWS
 from utils import mock_win32
+from utils.platform import IS_WINDOWS
 
 pytestmark = pytest.mark.skipif(IS_WINDOWS, reason="asserts on the mock win32 backend")
 
@@ -22,7 +20,7 @@ class StubDetector:
     """Programmable detector double keyed by button type."""
 
     def __init__(self) -> None:
-        self.responses: dict[ButtonType, Optional[DetectionResult]] = {}
+        self.responses: dict[ButtonType, DetectionResult | None] = {}
         self.calls: list[ButtonType] = []
 
     def detect(self, img, button_type, **kwargs):

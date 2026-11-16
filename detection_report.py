@@ -58,7 +58,8 @@ class Stats:
 
 def _bootstrap_synthetic() -> None:
     """Regenerate synthetic fixture images when absent (they are gitignored)."""
-    from tests._generate_synthetic import SYNTHETIC_DIR, main as generate_synthetic
+    from tests._generate_synthetic import SYNTHETIC_DIR
+    from tests._generate_synthetic import main as generate_synthetic
 
     if not any(SYNTHETIC_DIR.glob("*.png")):
         generate_synthetic()

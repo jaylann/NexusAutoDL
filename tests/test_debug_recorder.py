@@ -11,15 +11,15 @@ from services.debug_recorder import DebugRecorder
 
 
 def _detection(**overrides) -> DetectionResult:
-    values = dict(
-        button_type=ButtonType.VORTEX,
-        x=200,
-        y=150,
-        confidence=0.9,
-        num_matches=12,
-        template_width=100,
-        template_height=40,
-    )
+    values = {
+        "button_type": ButtonType.VORTEX,
+        "x": 200,
+        "y": 150,
+        "confidence": 0.9,
+        "num_matches": 12,
+        "template_width": 100,
+        "template_height": 40,
+    }
     values.update(overrides)
     return DetectionResult(**values)
 
