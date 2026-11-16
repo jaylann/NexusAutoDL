@@ -7,12 +7,23 @@
     run always tests the newest Vortex, browsers and Wabbajack. Writes the
     installed versions to e2e-results\<timestamp>\versions.json.
 
+    -VortexVersion / -WabbajackVersion install that exact version instead of
+    the latest (uninstalling a newer one first), for the "Older versions"
+    checks in the runbook. Do this on a VM checkpoint made for that version:
+    an older Vortex may not open the state a newer one has migrated.
+
 .EXAMPLE
     pwsh tools/e2e/update_apps.ps1
+
+.EXAMPLE
+    pwsh tools/e2e/update_apps.ps1 -VortexVersion 1.13.7
 #>
 [CmdletBinding()]
 param(
     [string[]]$Packages = @('NexusMods.Vortex', 'Google.Chrome', 'Mozilla.Firefox', 'WabbajackTools.Wabbajack'),
+    # Exact versions to pin (as winget lists them); empty means latest.
+    [string]$VortexVersion = '',
+    [string]$WabbajackVersion = '',
     [string]$OutDir = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "e2e-results\$(Get-Date -Format 'yyyyMMdd-HHmmss')")
 )
 
@@ -33,9 +44,31 @@ function Get-InstalledVersion([string]$Id) {
     return $row.Trim()
 }
 
+$pinned = @{
+    'NexusMods.Vortex'         = $VortexVersion
+    'WabbajackTools.Wabbajack' = $WabbajackVersion
+}
+
 $versions = [ordered]@{}
 foreach ($id in $Packages) {
     $before = Get-InstalledVersion $id
+    $pin = $pinned[$id]
+    if ($pin) {
+        if ($before -and $before -ne $pin) {
+            Write-Host "$id $before; replacing with pinned $pin"
+            winget uninstall --id $id --exact --silent --disable-interactivity
+        }
+        if ($before -ne $pin) {
+            winget install --id $id --exact --version $pin --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
+        }
+        $after = Get-InstalledVersion $id
+        if ($after -ne $pin) {
+            throw "$id is at '$after' after installing pinned version '$pin'"
+        }
+        $versions[$id] = [ordered]@{ before = $before; after = $after; pinned = $true }
+        Write-Host "  -> $after (pinned)"
+        continue
+    }
     if (-not $before) {
         Write-Host "$id is not installed; installing"
         winget install --id $id --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity

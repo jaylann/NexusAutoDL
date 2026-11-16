@@ -17,8 +17,15 @@ For each flow it:
 6. writes ``result.json`` and cleans up (deletes the new files, runs the
    flow's optional ``reset`` command) so the run can be repeated.
 
+While a flow runs it also saves a raw capture of every monitor every
+``--raw-every`` seconds (``<flow>/raw/``). Those are unannotated frames from the
+app's own capture pipeline: the source for regression fixtures and for button
+pictures at the scale the VM runs at. ``--label`` names the run after the app
+versions under test (see "Older versions" in the runbook).
+
     python tools/e2e/run_e2e.py --flow all
     python tools/e2e/run_e2e.py --flow website --yes --timeout 600
+    python tools/e2e/run_e2e.py --flow vortex --label vortex-1.13.7
 
 Flows and paths come from ``tools/e2e/targets.toml`` (copy
 ``targets.example.toml``; the real file is gitignored). Results go to
@@ -31,8 +38,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -216,6 +225,45 @@ def save_final_capture(folder: Path) -> None:
         print(f"  could not save final capture: {exc}")
 
 
+_CLICK_LOG = re.compile(r"Clicked at \((-?\d+), (-?\d+)\)")
+
+
+class RawFrameSaver(threading.Thread):
+    """Saves a raw capture of every monitor at a fixed interval.
+
+    Runs beside the app, through the app's own capture pipeline, so each
+    ``<seconds>_m<index>.png`` is a frame the detector could have been given.
+    """
+
+    def __init__(self, folder: Path, every: float) -> None:
+        super().__init__(daemon=True)
+        self.folder = folder
+        self.every = every
+        self._stop_requested = threading.Event()
+        self.saved = 0
+
+    def run(self) -> None:
+        import cv2
+
+        from services.screen_capture import ScreenCapture
+        from services.window_manager import WindowManager
+
+        # mss objects belong to the thread that created them.
+        capture = ScreenCapture(WindowManager.get_all_monitors())
+        self.folder.mkdir(parents=True, exist_ok=True)
+        started = time.monotonic()
+        while not self._stop_requested.wait(self.every):
+            seconds = round(time.monotonic() - started)
+            for captured in capture.capture_frames():
+                path = self.folder / f"{seconds:05d}_m{captured.frame.index}.png"
+                cv2.imwrite(str(path), cv2.cvtColor(captured.image, cv2.COLOR_RGB2BGR))
+                self.saved += 1
+
+    def stop(self) -> None:
+        self._stop_requested.set()
+        self.join(timeout=10)
+
+
 def run_flow(
     flow: str, targets: dict[str, Any], args: argparse.Namespace, out: Path
 ) -> dict[str, Any]:
@@ -249,13 +297,18 @@ def run_flow(
     print(f"  starting: {' '.join(cmd[1:])}")
     started = time.monotonic()
     ok, files, reason = False, {}, "interrupted"
+    saver = RawFrameSaver(flow_dir / "raw", args.raw_every) if args.raw_every else None
     with open(flow_dir / "app.log", "w", encoding="utf-8") as log:
         app = subprocess.Popen(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+        if saver:
+            saver.start()
         try:
             ok, files, reason = wait_for_files(
                 folder, before, expected, args.timeout, app
             )
         finally:
+            if saver:
+                saver.stop()
             if not ok:
                 save_final_capture(flow_dir)
             if app.poll() is None:
@@ -265,8 +318,13 @@ def run_flow(
                 except subprocess.TimeoutExpired:
                     app.kill()
 
+    # How often the app clicked for these files: far more clicks than files
+    # means it kept hitting something that did nothing.
+    log_text = (flow_dir / "app.log").read_text(encoding="utf-8", errors="replace")
     result.update(
         {
+            "clicks": len(_CLICK_LOG.findall(log_text)),
+            "raw_frames": saver.saved if saver else 0,
             "passed": ok,
             "reason": reason,
             "elapsed_s": round(time.monotonic() - started, 1),
@@ -311,6 +369,17 @@ def main() -> int:
         "--keep-downloads", action="store_true", help="don't delete what was downloaded"
     )
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument(
+        "--label",
+        default=None,
+        help="name for this run, e.g. the app versions under test (vortex-1.13.7)",
+    )
+    parser.add_argument(
+        "--raw-every",
+        type=float,
+        default=10.0,
+        help="seconds between raw captures of every monitor (0 = off)",
+    )
     args = parser.parse_args()
 
     if not IS_WINDOWS:
@@ -327,7 +396,8 @@ def main() -> int:
         return 2
 
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    out = args.out or ROOT / "e2e-results" / stamp
+    folder_name = f"{stamp}-{args.label}" if args.label else stamp
+    out = args.out or ROOT / "e2e-results" / folder_name
     out.mkdir(parents=True, exist_ok=True)
 
     browser = targets.get("browser", {})
@@ -340,7 +410,7 @@ def main() -> int:
     print(f"Versions: {versions}")
 
     results = [run_flow(flow, targets, args, out) for flow in flows]
-    summary = {"versions": versions, "results": results}
+    summary = {"label": args.label, "versions": versions, "results": results}
     (out / "summary.json").write_text(
         json.dumps(summary, indent=2) + "\n", encoding="utf-8"
     )
@@ -349,7 +419,8 @@ def main() -> int:
     for r in results:
         print(
             f"  {r['flow']:<10} {'PASS' if r['passed'] else 'FAIL':<5} "
-            f"{len(r['files'])}/{r['expected_files']} files, {r['elapsed_s']}s  {r['reason']}"
+            f"{len(r['files'])}/{r['expected_files']} files, {r['clicks']} clicks, "
+            f"{r['elapsed_s']}s  {r['reason']}"
         )
     return 0 if all(r["passed"] for r in results) else 1
 

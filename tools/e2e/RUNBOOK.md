@@ -120,9 +120,9 @@ For each flow, `run_e2e.py`:
 
 Results land in `e2e-results/<timestamp>/`:
 
-- `summary.json` with versions and pass/fail per flow,
-- for each flow, `app.log`, debug `frames/`, and on failure one raw capture per monitor
-  (`final_capture_m0.png`, `final_capture_m1.png`, ...).
+- `summary.json` with versions and pass/fail per flow, and how often the app clicked,
+- for each flow, `app.log`, debug `frames/`, a raw capture of every monitor every 10 s in
+  `raw/` (`--raw-every`), and on failure one more per monitor (`final_capture_m0.png`, ...).
 
 The script deletes the downloads afterwards (unless `--keep-downloads`), so you can run it again
 right away. Run it twice in a row once, to prove the cleanup works. Once a flow needs no hands,
@@ -143,11 +143,53 @@ permanent test:
 4. Commit the PNG and its `cases.json` entry under `tests/fixtures/detection/real/`.
    `pytest` and `detection_report.py` pick it up on every OS.
 
+## 10. Older versions
+
+Not run yet: these steps and the script options behind them were written without the VM.
+
+People are on different Vortex generations. The dialog that asks a free user to download
+exists in two designs: the old one with an orange **Download** button, and the one with
+**Download manually** (in Vortex's source since August 2025, restyled in August 2026). Issue
+#23 came from the old design in August 2026, issue #13 from the new one. The Nexus site itself
+cannot be pinned: everyone gets today's site.
+
+Use one VM checkpoint per version instead of downgrading in place. An older Vortex may not
+open the state a newer one has migrated.
+
+1. Make a checkpoint of the finished VM (logged in, game managed, targets working).
+2. For each line in `tools/e2e/versions.example.toml`: restore the checkpoint, then
+   ```powershell
+   pwsh tools/e2e/update_apps.ps1 -VortexVersion 1.13.7
+   python tools/e2e/run_e2e.py --flow vortex --label vortex-1.13.7
+   ```
+   Turn off Vortex's own updates first (Settings > Vortex > Update > No automatic updates),
+   or it replaces the pinned version on the next start. Save a checkpoint per version if you
+   want to rerun it.
+3. Keep each `e2e-results/<timestamp>-<label>/`. A version passes when its `summary.json`
+   passes with about one click per expected file.
+
+What to look for besides pass/fail:
+
+- an old Vortex that refuses to log in or forces an update: note the version in Findings, it
+  is then out of scope;
+- Wabbajack replacing a pinned version with the newest on start.
+
+### Pictures at the VM's scale
+
+The app's pictures of the Vortex buttons were captured at 150 % scaling. At 100 % the real
+button is two thirds of that size and its text is drawn differently, not just smaller, so a
+shrunken picture matches it poorly (measured on the screenshots in issue #13). Each run's
+`raw/` frames are the fix: set the VM to 100 %, 125 % and 150 % in turn, run the flow, and
+cut the button out of a frame that shows it. Those cuts become additional pictures in
+`assets/`, and the frames become fixtures (section 9), tagged with the Vortex version.
+
 ## Findings
 
 Record answers here as the spikes settle them:
 
 - [ ] Vortex accepts a stub game folder? Which game?
+- [ ] Which pinned Vortex versions still log in and download? Which show which dialog?
+- [ ] Does pinning Wabbajack survive its start-up update?
 - [ ] Reliable way to reset a collection between runs (`reset` command in targets.toml)?
 - [ ] Wabbajack needs the base game installed before it downloads?
 - [ ] Virtual Display Driver works in this Hyper-V VM without GPU partitioning? (If the
