@@ -14,6 +14,11 @@ report can double as a regression gate. Cases whose button type / template /
 image is unavailable on the current branch are reported as skipped (same
 gating as the pytest suite), so the score only reflects cases this branch can
 actually run.
+
+Cases marked ``known_gap`` are buttons the detector does not find yet. They
+are listed on their own and left out of the recall, so the score stays a
+regression gate, but a detection in the wrong place there counts as a false
+positive.
 """
 
 from __future__ import annotations
@@ -21,13 +26,15 @@ from __future__ import annotations
 import argparse
 import time
 from dataclasses import dataclass, field
+from typing import Any
 
-from models import AppConfig, ButtonType
+from models import AppConfig, ButtonType, DetectionResult
 from services.button_detector import ButtonDetector
 from tests.harness import (
     ASSETS_PATH,
     case_image_path,
     ground_truth_error,
+    known_gap,
     load_cases,
     read_rgb,
     skip_reason,
@@ -78,6 +85,8 @@ def run(fail_under: float | None = None) -> int:
     by_type: dict[str, Stats] = {}
     by_variant: dict[str, Stats] = {}
     by_generation: dict[str, Stats] = {}
+    by_source: dict[str, Stats] = {}
+    gaps: list[tuple[str, str, str]] = []  # (image, button type, outcome)
     skipped = 0
 
     for case in cases:
@@ -89,6 +98,7 @@ def run(fail_under: float | None = None) -> int:
         button_type = ButtonType(case["button_type"])
         variant = str(case.get("meta", {}).get("variant", "?"))
         generation = str(case.get("meta", {}).get("ui_generation", "new"))
+        source = str(case.get("meta", {}).get("source", "?"))
         img = read_rgb(case_image_path(case))
 
         start = time.perf_counter()
@@ -100,15 +110,25 @@ def run(fail_under: float | None = None) -> int:
         )
         elapsed_ms = (time.perf_counter() - start) * 1000.0
 
+        gap_outcome = _gap_outcome(case, result) if known_gap(case) else None
+        if gap_outcome is not None:
+            gaps.append((case["image"], button_type.value, gap_outcome))
+
         for st in (
             by_type.setdefault(button_type.value, Stats()),
             by_variant.setdefault(variant, Stats()),
             by_generation.setdefault(generation, Stats()),
+            by_source.setdefault(source, Stats()),
         ):
             st.latencies_ms.append(elapsed_ms)
             if case["expect"] == "absent":
                 st.negatives += 1
                 if result is not None:
+                    st.false_positives += 1
+                continue
+            if gap_outcome is not None:
+                # Not part of the recall; a wrong place is still a wrong click.
+                if gap_outcome == _GAP_WRONG_PLACE:
                     st.false_positives += 1
                 continue
             st.expected += 1
@@ -126,6 +146,14 @@ def run(fail_under: float | None = None) -> int:
     print()
     print("By UI generation:")
     _print_table(by_generation)
+    print()
+    print("By source (real = cut from a user's screenshot):")
+    _print_table(by_source)
+    if gaps:
+        print()
+        print("Known gaps (real buttons not found yet, not part of the score):")
+        for image, type_name, outcome in gaps:
+            print(f"  {image:<44}{type_name:<10}{outcome}")
 
     score = _print_score(by_type, skipped)
     if fail_under is None:
@@ -143,6 +171,19 @@ def run(fail_under: float | None = None) -> int:
             )
             failed = True
     return 1 if failed else 0
+
+
+_GAP_MISSED = "missed"
+_GAP_WRONG_PLACE = "DETECTED IN THE WRONG PLACE"
+_GAP_CLOSED = "found now: remove known_gap from the case"
+
+
+def _gap_outcome(case: dict[str, Any], result: DetectionResult | None) -> str:
+    """What the detector did on a known-gap case."""
+    if result is None:
+        return _GAP_MISSED
+    error = ground_truth_error((result.x, result.y), case)
+    return _GAP_CLOSED if error <= float(case["tolerance_px"]) else _GAP_WRONG_PLACE
 
 
 def _score(detected: int, expected: int, false_positives: int) -> float:
