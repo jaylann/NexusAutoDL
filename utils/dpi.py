@@ -10,6 +10,12 @@ and accept physical virtual-desktop pixels, the same space mss captures.
 
 Awareness is process-global and can only be set once, before the first user32
 call, so ``ensure_dpi_awareness`` must run at startup and is idempotent.
+
+Windows can refuse the request without an error worth acting on: awareness is
+fixed once a manifest, an earlier call, or a compatibility override on
+python.exe ("Override high DPI scaling behavior") has set it. The level that
+actually applies is therefore read back from the OS, never inferred from the
+setters' return values.
 """
 
 from __future__ import annotations
@@ -21,15 +27,16 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# shcore.SetProcessDpiAwareness returns this when awareness was already set
-# (by an earlier call or an application manifest) -- that is success for us.
-_E_ACCESSDENIED = -2147024891  # 0x80070005 as signed HRESULT
-
 # user32.SetProcessDpiAwarenessContext argument (Windows 10 1703+).
 _DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
 
 # shcore.SetProcessDpiAwareness argument (Windows 8.1+).
 _PROCESS_PER_MONITOR_DPI_AWARE = 2
+
+# DPI_AWARENESS / PROCESS_DPI_AWARENESS values reported by the OS.
+_OS_UNAWARE = 0
+_OS_SYSTEM_AWARE = 1
+_OS_PER_MONITOR_AWARE = 2
 
 
 class DpiAwareness(str, Enum):
@@ -48,9 +55,9 @@ _result: DpiAwareness | None = None
 def ensure_dpi_awareness() -> DpiAwareness:
     """Declare per-monitor DPI awareness; idempotent, safe off-Windows.
 
-    Tries, in order: per-monitor-v2 (Win10 1703+), per-monitor (Win8.1+),
-    system-aware (Vista+). Returns the achieved level so callers can warn
-    when coordinates may be scaled.
+    Requests, in order: per-monitor-v2 (Win10 1703+), per-monitor (Win8.1+),
+    system-aware (Vista+). Returns the level Windows actually applies, so
+    callers can tell when coordinates are still scaled.
     """
     global _result
     if _result is not None:
@@ -65,8 +72,13 @@ def ensure_dpi_awareness() -> DpiAwareness:
     _result = _set_windows_awareness(ctypes)
     if _result is DpiAwareness.UNAWARE:
         logger.error(
-            "Could not set DPI awareness; clicks will be misplaced on any "
-            "display scaled != 100%"
+            "Windows refused DPI awareness for this process; clicks will be "
+            "misplaced on any display scaled != 100%"
+        )
+    elif _result is DpiAwareness.SYSTEM:
+        logger.warning(
+            "Process is only system DPI aware; clicks will be misplaced on "
+            "monitors scaled differently from the primary"
         )
     else:
         logger.info(f"Process DPI awareness: {_result.value}")
@@ -74,27 +86,70 @@ def ensure_dpi_awareness() -> DpiAwareness:
 
 
 def _set_windows_awareness(ctypes) -> DpiAwareness:
+    """Request per-monitor awareness, then report what Windows applied."""
+    _request_per_monitor_awareness(ctypes)
+    return _read_awareness(ctypes)
+
+
+def _request_per_monitor_awareness(ctypes) -> None:
+    windll = ctypes.windll
     try:
-        if ctypes.windll.user32.SetProcessDpiAwarenessContext(
-            _DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+        set_context = windll.user32.SetProcessDpiAwarenessContext
+        # DPI_AWARENESS_CONTEXT is a pointer-sized handle: a bare Python int is
+        # passed as a 32-bit C int, which can fail on 64-bit Python.
+        set_context.argtypes = [ctypes.c_void_p]
+        if set_context(ctypes.c_void_p(_DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)):
+            return
+    except (AttributeError, OSError):
+        pass
+
+    try:
+        if windll.shcore.SetProcessDpiAwareness(_PROCESS_PER_MONITOR_DPI_AWARE) == 0:
+            return
+    except (AttributeError, OSError):
+        pass
+
+    try:
+        windll.user32.SetProcessDPIAware()
+    except (AttributeError, OSError):
+        pass
+
+
+def _read_awareness(ctypes) -> DpiAwareness:
+    """The DPI awareness Windows applies to this thread right now."""
+    user32 = ctypes.windll.user32
+    try:
+        get_context = user32.GetThreadDpiAwarenessContext
+        get_context.restype = ctypes.c_void_p
+        context = ctypes.c_void_p(get_context())
+
+        contexts_equal = user32.AreDpiAwarenessContextsEqual
+        contexts_equal.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        if contexts_equal(
+            context, ctypes.c_void_p(_DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
         ):
             return DpiAwareness.PER_MONITOR_V2
-    except (AttributeError, OSError):
-        pass
 
-    try:
-        hresult = ctypes.windll.shcore.SetProcessDpiAwareness(
-            _PROCESS_PER_MONITOR_DPI_AWARE
-        )
-        if hresult == 0 or hresult == _E_ACCESSDENIED:
-            return DpiAwareness.PER_MONITOR
+        get_level = user32.GetAwarenessFromDpiAwarenessContext
+        get_level.argtypes = [ctypes.c_void_p]
+        level = get_level(context)
     except (AttributeError, OSError):
-        pass
+        # Before Windows 10 1607 only the process-wide query exists.
+        level = _read_process_awareness(ctypes)
 
-    try:
-        if ctypes.windll.user32.SetProcessDPIAware():
-            return DpiAwareness.SYSTEM
-    except (AttributeError, OSError):
-        pass
-
+    if level == _OS_PER_MONITOR_AWARE:
+        return DpiAwareness.PER_MONITOR
+    if level == _OS_SYSTEM_AWARE:
+        return DpiAwareness.SYSTEM
     return DpiAwareness.UNAWARE
+
+
+def _read_process_awareness(ctypes) -> int:
+    try:
+        value = ctypes.c_int(_OS_UNAWARE)
+        hresult = ctypes.windll.shcore.GetProcessDpiAwareness(None, ctypes.byref(value))
+        if hresult == 0:
+            return int(value.value)
+    except (AttributeError, OSError):
+        pass
+    return _OS_UNAWARE
