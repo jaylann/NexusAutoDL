@@ -1,0 +1,107 @@
+name: Real Vortex
+
+# Runs the app's detector against Vortex itself. A GitHub-hosted Windows runner
+# installs a Vortex release, a small local extension (tools/ci/real_vortex)
+# makes Vortex show its free-download dialog, and the point the app would
+# click is compared with where Vortex says it drew the button, at 100, 125 and
+# 150 % scaling. The display rig (windows-displays.yml) proves coordinates on
+# every monitor layout with drawn buttons; this proves the button is found as
+# Vortex really renders it.
+#
+# No Nexus account, no login, no download, no click.
+#
+# "latest" is the newest stable Vortex at run time: the nightly run is how a
+# Vortex update that changes the dialog gets noticed.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "47 3 * * *"
+  # `pull_request`, never `pull_request_target`: fork PRs run without secrets.
+  pull_request:
+    paths:
+      - "services/**"
+      - "utils/**"
+      - "models/**"
+      - "assets/**"
+      - "tools/ci/real_vortex/**"
+      - "tools/ci/real_vortex_check.py"
+      - "tools/ci/install_real_vortex.ps1"
+      - "tools/ci/install_virtual_display_driver.ps1"
+      - "tools/ci/set_display_layout.py"
+      - "requirements.txt"
+      - ".github/workflows/real-vortex.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-vortex-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vortex:
+    name: vortex-${{ matrix.vortex }}-at-${{ matrix.scale }}
+    runs-on: windows-2025
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        vortex: ["2.10.1", "latest"]
+        scale: [100, 125, 150]
+        include:
+          # SHA256 of vortex-setup-2.10.1.exe as published with the release.
+          - vortex: "2.10.1"
+            sha256: "01d62323acc37f0056a2752b82b26fa5992df818f4718f82ab3e3ea24d406030"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Install Virtual Display Driver
+        shell: pwsh
+        run: tools/ci/install_virtual_display_driver.ps1 -Count 1
+
+      - name: Apply topology
+        run: python tools/ci/set_display_layout.py --layout "1920x1080@0,0:${{ matrix.scale }}" --json artifacts/layout.json
+
+      - name: Check display state
+        run: python tools/ci/display_report.py --out artifacts/report --expect "1920x1080@0,0:${{ matrix.scale }}"
+
+      - name: Install Vortex ${{ matrix.vortex }}
+        id: install
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/ci/install_real_vortex.ps1 -Version "${{ matrix.vortex }}" -Sha256 "${{ matrix.sha256 }}"
+
+      # Exit code 2 means the dialog never showed, so nothing was tested: the
+      # step fails then as well, it must not pass for the wrong reason.
+      - name: Find the button in real Vortex
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/real-vortex | Out-Null
+          $env:NEXUSAUTODL_RIG_OUT = (Resolve-Path artifacts/real-vortex).Path
+          Start-Process -FilePath "${{ steps.install.outputs.exe }}"
+          python tools/ci/real_vortex_check.py --out artifacts/real-vortex --label "Vortex ${{ steps.install.outputs.version }} at ${{ matrix.scale }} %"
+
+      - name: Collect Vortex logs
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/vortex-logs | Out-Null
+          Copy-Item -Path "$env:APPDATA\Vortex\*.log" -Destination artifacts/vortex-logs -ErrorAction SilentlyContinue
+          Get-Process -Name Vortex -ErrorAction SilentlyContinue | Stop-Process -Force
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-vortex-${{ matrix.vortex }}-at-${{ matrix.scale }}
+          path: artifacts/
+          retention-days: 14

@@ -52,7 +52,7 @@ from matching. If you hit a detection problem:
 ## Testing monitor setups you don't own
 
 Most click-location bugs depend on monitor count, position and DPI scaling.
-Two rigs cover setups you don't have on your desk:
+Three rigs cover setups you don't have on your desk:
 
 - **CI, virtual monitors** (`.github/workflows/windows-displays.yml`). It runs on
   PRs that touch the app or `tools/`, and nightly. A GitHub Windows runner gets
@@ -67,6 +67,18 @@ Two rigs cover setups you don't have on your desk:
 
   Artifacts hold the captures, debug frames and per-click offsets. The scripts
   in `tools/ci/` also work on any Windows machine or VM.
+- **CI, real Vortex** (`.github/workflows/real-vortex.yml`). It runs on PRs
+  that touch the app or its button pictures, and nightly. A GitHub Windows
+  runner installs a Vortex release (one pinned version and the newest stable
+  one), and a small local extension (`tools/ci/real_vortex/`) makes Vortex show
+  its free-download dialog. `tools/ci/real_vortex_check.py` then compares the
+  point the app would click with where Vortex itself says it drew the button,
+  at 100, 125 and 150 % scaling. No Nexus account is involved, nothing is
+  downloaded and nothing is clicked. The virtual-monitor rig draws the app's
+  own pictures of the buttons; this is the check that those pictures still
+  match what Vortex renders. Its artifacts hold clean captures of the dialog,
+  which is where new fixtures under `tests/fixtures/detection/real/` and new
+  button pictures come from.
 - **Real end-to-end VM** (`tools/e2e/RUNBOOK.md`). Started by hand, never in
   CI. It drives the live Nexus site and the latest Vortex, browsers and
   Wabbajack. When it fails, turn the failing screen into a fixture under

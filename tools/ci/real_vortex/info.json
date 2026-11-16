@@ -1,0 +1,6 @@
+{
+  "name": "Rig free download dialog",
+  "author": "NexusAutoDL test rig",
+  "version": "1.0.0",
+  "description": "Opens Vortex's free-download dialog so the test rig can capture it."
+}
