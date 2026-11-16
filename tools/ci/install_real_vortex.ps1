@@ -41,6 +41,9 @@ Write-Host "Installer SHA256: $actual"
 if ($Sha256 -and ($actual -ne $Sha256.ToLower())) {
     throw "installer hash mismatch: expected $Sha256"
 }
+# Visible on the run page: which installer ran, and whether it was pinned.
+$pin = if ($Sha256) { "matches the pinned hash" } else { "not pinned" }
+Write-Host "::notice title=Vortex installer::vortex-setup-$Version.exe, SHA256 $actual ($pin)"
 
 Write-Host "Installing silently"
 $install = Start-Process -FilePath $installer -ArgumentList "/S" -PassThru
