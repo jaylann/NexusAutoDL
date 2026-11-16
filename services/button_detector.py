@@ -136,6 +136,7 @@ class ButtonDetector:
         }
         optional_assets: dict[str, str] = {
             "vortex_new": "VortexDownloadButtonNew.png",
+            "vortex_legacy_100": "VortexDownloadButtonLegacy100.png",
             "web_new": "WebsiteDownloadButtonNew.png",
         }
 
@@ -175,6 +176,11 @@ class ButtonDetector:
             ButtonType.VORTEX: (
                 ("new", assets.vortex_new_img),
                 ("legacy", assets.vortex_img),
+                # The old orange button as Vortex draws it at 100 % scaling,
+                # cut from a user's screenshot (issue #23). The two pictures
+                # above are 150 % captures; shrunk to two thirds they do not
+                # look like text Windows rendered at 100 %.
+                ("legacy-100", assets.vortex_legacy_100_img),
             ),
             ButtonType.WEBSITE: (
                 ("new", assets.web_new_img),

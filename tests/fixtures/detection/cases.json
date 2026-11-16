@@ -3397,6 +3397,140 @@
       }
     },
     {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        1189,
+        47
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 0.85,
+        "variant": "legacy_100",
+        "source": "synthetic",
+        "ui_generation": "legacy"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_085.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "vortex",
+      "expect": "present",
+      "point": [
+        95,
+        648
+      ],
+      "tolerance_px": 10,
+      "meta": {
+        "resolution": "1280x720",
+        "scale": 1.0,
+        "variant": "legacy_100",
+        "source": "synthetic",
+        "ui_generation": "legacy"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "website",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "wabbajack",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "click",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "understood",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
+      "image": "synthetic/vortex_legacy_100_100.png",
+      "button_type": "staging",
+      "expect": "absent",
+      "meta": {
+        "resolution": "1280x720",
+        "variant": "legacy_100_cross",
+        "source": "synthetic"
+      }
+    },
+    {
       "image": "synthetic/label_prefix_45_085.png",
       "button_type": "vortex",
       "expect": "absent",

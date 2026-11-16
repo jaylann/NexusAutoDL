@@ -12,6 +12,7 @@ class ButtonAssets(BaseModel):
 
     vortex_img: NDArray[uint8]
     vortex_new_img: Optional[NDArray[uint8]] = None
+    vortex_legacy_100_img: Optional[NDArray[uint8]] = None
     web_img: NDArray[uint8]
     web_new_img: Optional[NDArray[uint8]] = None
     wabbajack_img: NDArray[uint8]
