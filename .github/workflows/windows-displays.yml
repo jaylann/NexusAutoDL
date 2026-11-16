@@ -35,9 +35,10 @@ concurrency:
 jobs:
   displays:
     name: ${{ matrix.name }}
-    # Pinned image: driver install and display APIs differ between Windows builds.
-    runs-on: windows-2025
-    timeout-minutes: 30
+    # Pinned images: driver install and display APIs differ between Windows
+    # builds. windows-2025 unless a layout asks for another.
+    runs-on: ${{ matrix.os || 'windows-2025' }}
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -48,12 +49,36 @@ jobs:
           - name: dual-1080p-100-150
             count: 2
             topology: "1920x1080@0,0:100;1920x1080@1920,0:150"
-          - name: dual-secondary-left
+          # Negative x and a scaled secondary together.
+          - name: dual-secondary-left-150
             count: 2
-            topology: "1920x1080@0,0:100;1920x1080@-1920,0:100"
+            topology: "1920x1080@0,0:100;1920x1080@-1920,0:150"
           - name: mixed-1440p-125-1080p-100
             count: 2
             topology: "2560x1440@0,0:125;1920x1080@2560,0:100"
+          # The reporter's setup in issue #23: scaled primary, small unscaled
+          # secondary. Once more on the older Windows image.
+          - name: issue-23-1080p-150-768p-100
+            count: 2
+            topology: "1920x1080@0,0:150;1366x768@1920,0:100"
+          - name: issue-23-on-windows-2022
+            os: windows-2022
+            count: 2
+            topology: "1920x1080@0,0:150;1366x768@1920,0:100"
+          # Negative y: the secondary sits above the primary.
+          - name: stacked-secondary-above-125
+            count: 2
+            topology: "1920x1080@0,0:100;1920x1080@0,-1080:125"
+          - name: triple-mixed
+            count: 3
+            topology: "2560x1440@0,0:125;1920x1080@-1920,0:100;1920x1080@2560,0:150"
+          - name: single-4k-200
+            count: 1
+            topology: "3840x2160@0,0:200"
+          # Portrait leaves a dead zone below the primary in the virtual desktop.
+          - name: portrait-right
+            count: 2
+            topology: "1920x1080@0,0:100;1080x1920@1920,0:100"
     steps:
       - uses: actions/checkout@v4
 

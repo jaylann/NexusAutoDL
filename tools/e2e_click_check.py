@@ -72,20 +72,29 @@ from utils.platform import IS_WINDOWS
 
 @dataclass(frozen=True)
 class TemplateInfo:
-    """A shipped template and the Windows scale it was captured at."""
+    """A shipped picture of a button and the Windows scale it was captured at."""
 
+    button_type: ButtonType
     asset: str
     capture_scale: float
+    generation: str  # "new" or "legacy" UI design
 
 
 # Capture scales are measured, not documented anywhere else: the real "Download
-# manually" button in issue #13 (100 % scaling) is 0.67x the Vortex template,
-# and the two "Slow download" templates differ by the same factor.
-TEMPLATES: dict[ButtonType, TemplateInfo] = {
-    ButtonType.VORTEX: TemplateInfo("VortexDownloadButtonNew.png", 1.5),
-    ButtonType.WEBSITE: TemplateInfo("WebsiteDownloadButtonNew.png", 1.5),
-    ButtonType.WABBAJACK: TemplateInfo("WabbajackDownloadButton.png", 1.0),
-}
+# manually" button in issue #13 (100 % scaling) is 0.67x the new Vortex picture,
+# the old orange "Download" in issue #23 is 0.65x the legacy one, and the two
+# "Slow download" pictures differ by the same factor. The 2022 website bar has
+# no real capture to measure against and is taken as a 100 % capture.
+VORTEX_TEMPLATES: tuple[TemplateInfo, ...] = (
+    TemplateInfo(ButtonType.VORTEX, "VortexDownloadButtonNew.png", 1.5, "new"),
+    TemplateInfo(ButtonType.VORTEX, "VortexDownloadButton.png", 1.5, "legacy"),
+)
+# Everything the app accepts as the website's download button.
+WEB_TEMPLATES: tuple[TemplateInfo, ...] = (
+    TemplateInfo(ButtonType.WEBSITE, "WebsiteDownloadButtonNew.png", 1.5, "new"),
+    TemplateInfo(ButtonType.WABBAJACK, "WabbajackDownloadButton.png", 1.0, "new"),
+    TemplateInfo(ButtonType.WEBSITE, "WebsiteDownloadButton.png", 1.0, "legacy"),
+)
 
 _WEB_POSITIONS: tuple[tuple[float, float], ...] = (
     (0.50, 0.50),
@@ -156,7 +165,7 @@ class Step:
 
     index: int
     kind: str  # "web", "vortex" or "idle"
-    button_type: ButtonType | None = None
+    template: TemplateInfo | None = None
     monitor: int = -1  # monitor the button is drawn on; -1 = the Vortex window
     fx: float = 0.5
     fy: float = 0.5
@@ -171,6 +180,8 @@ class ClickRecord:
     step: int | None
     kind: str | None
     button_type: str | None
+    asset: str | None
+    generation: str | None
     monitor: int | None
     dpi_scale: float | None
     draw_scale: float | None  # size relative to the template image
@@ -236,13 +247,13 @@ def unseen_clicks(
     return unseen
 
 
-def draw_scale(button_type: ButtonType, monitor_scale: float, zoom: float) -> float:
+def draw_scale(template: TemplateInfo, monitor_scale: float, zoom: float) -> float:
     """Size to draw a template at so it looks like the real button would.
 
     A template captured at 150 % shows a button 1.5x its 100 % size, so on a
     100 % monitor at 100 % zoom the real button is 1 / 1.5 of the template.
     """
-    return monitor_scale * zoom / TEMPLATES[button_type].capture_scale
+    return monitor_scale * zoom / template.capture_scale
 
 
 def judge_click(
@@ -261,7 +272,11 @@ def judge_click(
 
 
 def build_steps(mode: str, monitor_count: int, primary: int, rounds: int) -> list[Step]:
-    """Button steps for ``mode``, with one idle scene after each round."""
+    """Button steps for ``mode``, with one idle scene after each round.
+
+    Templates cycle so every design the app knows gets clicked: with three
+    rounds, all three website pictures and both Vortex designs.
+    """
     steps: list[Step] = []
 
     def add(kind: str, **fields: Any) -> None:
@@ -270,12 +285,11 @@ def build_steps(mode: str, monitor_count: int, primary: int, rounds: int) -> lis
     for r in range(rounds):
         zoom = _ZOOMS[r % len(_ZOOMS)]
         if mode == "web":
-            web_types = (ButtonType.WEBSITE, ButtonType.WABBAJACK)
             for m in range(monitor_count):
                 fx, fy = _WEB_POSITIONS[(r + m) % len(_WEB_POSITIONS)]
                 add(
                     "web",
-                    button_type=web_types[(r + m) % len(web_types)],
+                    template=WEB_TEMPLATES[(r + m) % len(WEB_TEMPLATES)],
                     monitor=m,
                     fx=fx,
                     fy=fy,
@@ -283,11 +297,17 @@ def build_steps(mode: str, monitor_count: int, primary: int, rounds: int) -> lis
                 )
         else:
             fx, fy = _VORTEX_POSITIONS[r % len(_VORTEX_POSITIONS)]
-            add("vortex", button_type=ButtonType.VORTEX, fx=fx, fy=fy, zoom=zoom)
+            add(
+                "vortex",
+                template=VORTEX_TEMPLATES[r % len(VORTEX_TEMPLATES)],
+                fx=fx,
+                fy=fy,
+                zoom=zoom,
+            )
             wx, wy = _WEB_POSITIONS[r % len(_WEB_POSITIONS)]
             add(
                 "web",
-                button_type=ButtonType.WEBSITE,
+                template=WEB_TEMPLATES[r % len(WEB_TEMPLATES)],
                 monitor=primary,
                 fx=wx,
                 fy=wy,
@@ -327,7 +347,7 @@ class Target:
         self._photo: Any = None  # keep a reference or Tk drops the image
         self._item: int | None = None
         self._item_canvas: Any = None
-        self._images: dict[tuple[ButtonType, float], Any] = {}
+        self._images: dict[tuple[str, float], Any] = {}
 
         self.root = tk.Tk()
         self.root.withdraw()
@@ -404,12 +424,11 @@ class Target:
 
     # --- buttons -----------------------------------------------------------
 
-    def _image_for(self, button_type: ButtonType, scale: float) -> Any:
-        key = (button_type, round(scale, 3))
+    def _image_for(self, asset: str, scale: float) -> Any:
+        key = (asset, round(scale, 3))
         if key not in self._images:
             from PIL import Image
 
-            asset = TEMPLATES[button_type].asset
             img = Image.open(ROOT / "assets" / asset).convert("RGB")
             if abs(scale - 1.0) > 0.005:
                 img = img.resize(
@@ -433,8 +452,8 @@ class Target:
         return self.scales[step.monitor]
 
     def _draw_scale(self, step: Step) -> float:
-        assert step.button_type is not None
-        return draw_scale(step.button_type, self._monitor_scale(step), step.zoom)
+        assert step.template is not None
+        return draw_scale(step.template, self._monitor_scale(step), step.zoom)
 
     def start(self) -> None:
         """Show the first step; until then the pages are blank."""
@@ -458,8 +477,8 @@ class Target:
 
         from PIL import ImageTk
 
-        assert step.button_type is not None
-        image = self._image_for(step.button_type, self._draw_scale(step))
+        assert step.template is not None
+        image = self._image_for(step.template.asset, self._draw_scale(step))
         self._photo = ImageTk.PhotoImage(image)
         self._item_canvas = self._canvas_for(step)
         self._item = self._item_canvas.create_image(
@@ -628,6 +647,8 @@ class Target:
                     step=None,
                     kind=None,
                     button_type=None,
+                    asset=None,
+                    generation=None,
                     monitor=None,
                     dpi_scale=None,
                     draw_scale=None,
@@ -643,14 +664,17 @@ class Target:
             return
 
         step = self.steps[self.current]
-        assert step.button_type is not None
+        assert step.template is not None
+        template = step.template
         inside, ok, offset = judge_click(rect, click, self.centre_tolerance)
         note = "" if ok else ("off-centre" if inside else "miss")
         self.clicks.append(
             ClickRecord(
                 step=step.index,
                 kind=step.kind,
-                button_type=step.button_type.value,
+                button_type=template.button_type.value,
+                asset=template.asset,
+                generation=template.generation,
                 monitor=step.monitor,
                 dpi_scale=round(self._monitor_scale(step), 2),
                 draw_scale=round(self._draw_scale(step), 3),
@@ -665,7 +689,7 @@ class Target:
             )
         )
         print(
-            f"  step {step.index:02d} {step.kind:<6} {step.button_type.value:<9} "
+            f"  step {step.index:02d} {step.kind:<6} {template.asset} "
             f"mon{step.monitor} x{self._draw_scale(step):.2f} rect={rect} "
             f"click={click} offset={offset} {'ok' if ok else note.upper()}"
         )
@@ -791,17 +815,21 @@ def summary_markdown(summary: dict[str, Any]) -> str:
                 f"received; idle scenes: {', '.join(phase['idle_scenes'])}"
             ),
             "",
-            "| step | button | monitor | drawn at | offset px | latency s | result |",
-            "|---|---|---|---|---|---|---|",
+            (
+                "| step | picture | design | monitor | drawn at | offset px "
+                "| latency s | result |"
+            ),
+            "|---|---|---|---|---|---|---|---|",
         ]
         for c in phase["clicks"]:
             if c["step"] is None:
                 lines.append(
-                    f"| - | - | - | - | - | - | STRAY at {c['click']} ({c['note']}) |"
+                    f"| - | - | - | - | - | - | - | STRAY at {c['click']} "
+                    f"({c['note']}) |"
                 )
                 continue
             lines.append(
-                f"| {c['step']} | {c['button_type']} | {c['monitor']} "
+                f"| {c['step']} | {c['asset']} | {c['generation']} | {c['monitor']} "
                 f"({round(c['dpi_scale'] * 100)}%) | x{c['draw_scale']} | "
                 f"{c['offset']} | {c['latency']} | {'ok' if c['ok'] else c['note']} |"
             )

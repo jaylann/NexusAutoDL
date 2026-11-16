@@ -60,16 +60,18 @@ from models import ButtonType
 from utils.dpi import ensure_dpi_awareness
 from utils.platform import IS_WINDOWS
 
-# Button type -> template asset rendered (the one matched in default/non-legacy
-# mode, so captures reflect production behaviour).
-_TEMPLATE_ASSET: dict[ButtonType, str] = {
-    ButtonType.VORTEX: "VortexDownloadButtonNew.png",
-    ButtonType.WEBSITE: "WebsiteDownloadButtonNew.png",
-    ButtonType.WABBAJACK: "WabbajackDownloadButton.png",
-    ButtonType.CLICK: "ClickHereButton.png",
-    ButtonType.UNDERSTOOD: "UnderstoodButton.png",
-    ButtonType.STAGING: "StagingButton.png",
-}
+# Every picture the app ships of a button: (type, asset, UI generation). The
+# detector tries all pictures of a type, so the sweep renders all of them.
+_TEMPLATES: tuple[tuple[ButtonType, str, str], ...] = (
+    (ButtonType.VORTEX, "VortexDownloadButtonNew.png", "new"),
+    (ButtonType.VORTEX, "VortexDownloadButton.png", "legacy"),
+    (ButtonType.WEBSITE, "WebsiteDownloadButtonNew.png", "new"),
+    (ButtonType.WEBSITE, "WebsiteDownloadButton.png", "legacy"),
+    (ButtonType.WABBAJACK, "WabbajackDownloadButton.png", "new"),
+    (ButtonType.CLICK, "ClickHereButton.png", "legacy"),
+    (ButtonType.UNDERSTOOD, "UnderstoodButton.png", "legacy"),
+    (ButtonType.STAGING, "StagingButton.png", "legacy"),
+)
 
 # Background colours cycled across scenarios (Tk colour names). Solid is fine --
 # the detector only needs the button's own features.
@@ -254,23 +256,25 @@ def _monitor_scale(frame: Any) -> float | None:
 
 
 def _build_plan(
-    types: list[ButtonType],
+    templates: list[tuple[ButtonType, str, str]],
     frames: list[Any],
     positions: int,
     scales: int,
 ) -> list[dict[str, Any]]:
-    """Cartesian sweep of (monitor frame, button_type, scale, position)."""
+    """Cartesian sweep of (monitor frame, template, scale, position)."""
     pos = _POSITION_POOL[: max(1, positions)]
     scl = _SCALE_POOL[: max(1, scales)]
     plan: list[dict[str, Any]] = []
     for frame in frames:
-        for bt in types:
+        for bt, asset, generation in templates:
             for scale in scl:
                 for fx, fy in pos:
                     plan.append(
                         {
                             "frame": frame,
                             "button_type": bt,
+                            "asset": asset,
+                            "generation": generation,
                             "scale": scale,
                             "fx": fx,
                             "fy": fy,
@@ -333,7 +337,7 @@ def main() -> int:
     parser.add_argument(
         "--types",
         nargs="*",
-        default=[bt.value for bt in _TEMPLATE_ASSET],
+        default=list(dict.fromkeys(bt.value for bt, _, _ in _TEMPLATES)),
         help="button types to render (default: all)",
     )
     parser.add_argument(
@@ -414,7 +418,10 @@ def main() -> int:
     except ValueError as exc:
         print(f"Unknown button type: {exc}")
         return 2
-    types = [t for t in types if (args.assets / _TEMPLATE_ASSET[t]).exists()]
+    templates = [
+        t for t in _TEMPLATES if t[0] in types and (args.assets / t[1]).exists()
+    ]
+    types = list(dict.fromkeys(t[0] for t in templates))
     if not types:
         print("No requested button types have template assets on this branch.")
         return 2
@@ -432,7 +439,7 @@ def main() -> int:
             f"size={frame.width}x{frame.height}"
         )
 
-    plan = _build_plan(types, target_frames, args.positions, args.scales)
+    plan = _build_plan(templates, target_frames, args.positions, args.scales)
     print(
         f"Planned {len(plan)} present scenarios + "
         f"{args.negatives * len(target_frames)} negative frames. Starting...\n"
@@ -488,7 +495,7 @@ def main() -> int:
         scale: float = step["scale"]
         fx, fy = step["fx"], step["fy"]
 
-        pil = _load_pil(args.assets / _TEMPLATE_ASSET[bt], scale)
+        pil = _load_pil(args.assets / step["asset"], scale)
         bg = _BG_COLORS[index % len(_BG_COLORS)]
         img = _render_and_capture(
             root, frame, pil, fx, fy, bg, capture, args.settle, idle_for(frame)
@@ -528,7 +535,13 @@ def main() -> int:
             "expect": "present",
             "point": [point[0], point[1]],
             "tolerance_px": _TOLERANCE_PX,
-            "meta": {**meta_for(frame), "scale": scale, "position": [fx, fy]},
+            "meta": {
+                **meta_for(frame),
+                "scale": scale,
+                "position": [fx, fy],
+                "asset": step["asset"],
+                "ui_generation": step["generation"],
+            },
         }
         min_matches = _min_matches_for(bt)
         if min_matches is not None:
@@ -556,7 +569,7 @@ def main() -> int:
                     f"  detect={res.method} {res.num_matches}m err={err:.1f}px({hit})"
                 )
         print(
-            f"[{index:03d}] mon{frame.index} {bt.value:<10} "
+            f"[{index:03d}] mon{frame.index} {step['asset']:<30} "
             f"x{scale} @({fx},{fy}) -> gt={point}{note}"
         )
         index += 1

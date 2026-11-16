@@ -24,7 +24,8 @@ param(
     [int]$Count = 2,
 
     # Modes the virtual monitors offer; the layout script picks one per monitor.
-    [string[]]$Resolutions = @('1280x720', '1920x1080', '2560x1440', '3840x2160'),
+    # 1366x768 is the small-laptop panel from issue #23, 1080x1920 a portrait one.
+    [string[]]$Resolutions = @('1280x720', '1366x768', '1920x1080', '1080x1920', '2560x1440', '3840x2160'),
 
     [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) 'vdd-install'),
 

@@ -18,6 +18,9 @@ from tools.ci.display_report import check_app_view
 from tools.ci.topology import MonitorSpec, format_topology, match_rects, parse_topology
 from tools.e2e_click_check import (
     IDLE_SCENES,
+    VORTEX_TEMPLATES,
+    WEB_TEMPLATES,
+    TemplateInfo,
     build_steps,
     draw_scale,
     judge_click,
@@ -221,16 +224,19 @@ class TestClickJudgement:
 
 
 class TestDrawScale:
+    AT_150: ClassVar[TemplateInfo] = VORTEX_TEMPLATES[0]
+    AT_100: ClassVar[TemplateInfo] = WEB_TEMPLATES[1]
+
     def test_150_percent_template_on_a_100_percent_monitor(self) -> None:
         # Issue #13: the real button at 100 % is two thirds of the template.
-        assert draw_scale(ButtonType.VORTEX, 1.0, 1.0) == pytest.approx(2 / 3)
+        assert draw_scale(self.AT_150, 1.0, 1.0) == pytest.approx(2 / 3)
 
     def test_template_scale_is_native_on_its_capture_scale(self) -> None:
-        assert draw_scale(ButtonType.VORTEX, 1.5, 1.0) == pytest.approx(1.0)
-        assert draw_scale(ButtonType.WABBAJACK, 1.0, 1.0) == pytest.approx(1.0)
+        assert draw_scale(self.AT_150, 1.5, 1.0) == pytest.approx(1.0)
+        assert draw_scale(self.AT_100, 1.0, 1.0) == pytest.approx(1.0)
 
     def test_zoom_multiplies(self) -> None:
-        assert draw_scale(ButtonType.WEBSITE, 1.25, 1.5) == pytest.approx(1.25)
+        assert draw_scale(self.AT_150, 1.25, 1.5) == pytest.approx(1.25)
 
 
 class TestBuildSteps:
@@ -238,10 +244,8 @@ class TestBuildSteps:
         steps = build_steps("web", monitor_count=2, primary=0, rounds=3)
         buttons = [s for s in steps if s.kind == "web"]
         assert [s.monitor for s in buttons] == [0, 1, 0, 1, 0, 1]
-        assert {s.button_type for s in buttons} == {
-            ButtonType.WEBSITE,
-            ButtonType.WABBAJACK,
-        }
+        # Every picture of the website button is shown, old design included.
+        assert {s.template for s in buttons} == set(WEB_TEMPLATES)
         assert [s.index for s in steps] == list(range(len(steps)))
 
     def test_one_idle_scene_after_each_round(self) -> None:
@@ -255,6 +259,13 @@ class TestBuildSteps:
         steps = build_steps("vortex", monitor_count=2, primary=1, rounds=2)
         assert [s.kind for s in steps] == ["vortex", "web", "idle"] * 2
         assert all(s.monitor == 1 for s in steps if s.kind == "web")
+
+    def test_vortex_mode_shows_the_old_and_the_new_vortex_button(self) -> None:
+        steps = build_steps("vortex", monitor_count=2, primary=0, rounds=3)
+        shown = [s.template for s in steps if s.kind == "vortex"]
+        assert set(shown) == set(VORTEX_TEMPLATES)
+        assert {t.generation for t in shown} == {"new", "legacy"}
+        assert all(t.button_type is ButtonType.VORTEX for t in shown)
 
     def test_zoom_changes_per_round(self) -> None:
         steps = build_steps("web", monitor_count=1, primary=0, rounds=3)
@@ -274,6 +285,8 @@ class TestSummaryMarkdown:
                 {
                     "step": 0,
                     "button_type": "website",
+                    "asset": "WebsiteDownloadButtonNew.png",
+                    "generation": "new",
                     "monitor": 0,
                     "dpi_scale": 1.5,
                     "draw_scale": 1.0,
@@ -297,7 +310,10 @@ class TestSummaryMarkdown:
         assert "1920x1080@0,0 150%" in text
         assert "PASS, 1/1 buttons clicked on centre, 0 stray" in text
         assert "idle scenes: blank, lookalikes" in text
-        assert "| 0 | website | 0 (150%) | x1.0 | [0, -1] | 1.4 | ok |" in text
+        assert (
+            "| 0 | WebsiteDownloadButtonNew.png | new | 0 (150%) | x1.0 | [0, -1] "
+            "| 1.4 | ok |"
+        ) in text
 
     def test_stray_click_is_listed(self) -> None:
         stray = {"step": None, "click": [10, 20], "note": "stray:idle:busy"}
