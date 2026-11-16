@@ -266,3 +266,50 @@ class TestCandidateMatches:
         self, detector: ButtonDetector
     ) -> None:
         assert detector._candidate_matches([self._group(10, 11)], 0.75) == []
+
+
+class TestPerFrameCaching:
+    """Several button types on one capture share the expensive work."""
+
+    class _CountingSift:
+        def __init__(self, sift) -> None:
+            self._sift = sift
+            self.calls = 0
+
+        def detectAndCompute(self, *args, **kwargs):
+            self.calls += 1
+            return self._sift.detectAndCompute(*args, **kwargs)
+
+    @pytest.fixture()
+    def counting(self, detector: ButtonDetector, monkeypatch: pytest.MonkeyPatch):
+        counter = self._CountingSift(detector.sift)
+        monkeypatch.setattr(detector, "sift", counter)
+        monkeypatch.setattr(detector, "_scene", None)
+        return counter
+
+    def test_features_are_computed_once_per_frame(
+        self, detector: ButtonDetector, counting
+    ) -> None:
+        img = _background(2)
+        for bt in (ButtonType.WEBSITE, ButtonType.WABBAJACK, ButtonType.CLICK):
+            detector.detect(img, bt)
+        assert counting.calls == 1
+
+    def test_a_new_frame_is_searched_afresh(
+        self, detector: ButtonDetector, counting
+    ) -> None:
+        blank = _background(2)
+        assert detector.detect(blank, ButtonType.VORTEX) is None
+        img, center = TestDetect()._scene(ButtonType.VORTEX)
+        result = detector.detect(img, ButtonType.VORTEX)
+        assert counting.calls == 2
+        assert result is not None and abs(result.x - center[0]) <= 3
+
+    def test_a_different_search_box_is_searched_afresh(
+        self, detector: ButtonDetector, counting
+    ) -> None:
+        img, _ = TestDetect()._scene(ButtonType.VORTEX)
+        assert detector.detect(img, ButtonType.VORTEX) is not None
+        away = BoundingBox(x1=0, y1=0, x2=300, y2=200)
+        assert detector.detect(img, ButtonType.VORTEX, bbox=away) is None
+        assert counting.calls == 2

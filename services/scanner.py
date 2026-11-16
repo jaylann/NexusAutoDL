@@ -10,6 +10,7 @@ from typing import Callable
 
 from models import (
     AppConfig,
+    BoundingBox,
     ButtonType,
     DetectionResult,
     Monitor,
@@ -27,6 +28,9 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 VORTEX_WEB_RETRY_LIMIT = 3  # Attempts before falling back to Vortex search
+# Scans to wait for the old site's "click here" link (--legacy) before moving
+# on. Today's site starts the download itself and never shows it.
+CLICK_DIALOG_RETRY_LIMIT = 5
 
 
 class Scanner:
@@ -62,6 +66,7 @@ class Scanner:
 
         # Initialize status
         self.status = ScanStatus(current_action="Initialized")
+        self._warned_vortex_unscanned = False
 
         # Setup windows if needed
         self._setup_windows()
@@ -77,7 +82,7 @@ class Scanner:
                 self._update_status()
 
             if self.config.vortex:
-                self.window_manager.position_vortex()
+                self.window_manager.position_vortex(self.screen_capture.targets)
                 self.status.current_action = "Positioned Vortex"
                 self._update_status()
 
@@ -122,30 +127,56 @@ class Scanner:
 
     def _handle_vortex_state(
         self,
-        captured: CapturedFrame,
+        frames: list[CapturedFrame],
         iteration: int,
     ) -> bool:
         """
         Handle Vortex button detection state.
 
         Args:
-            captured: Current frame of the monitor hosting Vortex
+            frames: This iteration's captures, one per scanned monitor
 
         Returns:
             True if Vortex button found and clicked
         """
-        # Get Vortex window bbox (virtual-desktop coords)
+        # Looked up once per iteration (virtual-desktop coords), not per frame.
         vortex_rect = self.window_manager.get_vortex_bbox()
         if not vortex_rect:
             self.status.current_action = "Waiting for Vortex window..."
             self._update_status()
             return False
 
-        padded_bbox = compute_search_bbox(vortex_rect, captured.frame)
-        if padded_bbox is None:
-            # Vortex lives on another monitor; nothing to do in this frame.
+        hosting = [
+            (captured, bbox)
+            for captured in frames
+            if (bbox := compute_search_bbox(vortex_rect, captured.frame)) is not None
+        ]
+        if not hosting:
+            # Minimised, or on a monitor --force-primary leaves out: say so
+            # instead of searching forever behind a stale status.
+            self.status.current_action = "Vortex window is not on a scanned monitor"
+            self._update_status()
+            if not self._warned_vortex_unscanned:
+                self._warned_vortex_unscanned = True
+                logger.warning(
+                    "The Vortex window is not on a monitor that is being scanned "
+                    "(minimised, or on a secondary monitor with --force-primary)"
+                )
             return False
+        self._warned_vortex_unscanned = False
 
+        for captured, padded_bbox in hosting:
+            if self._search_vortex_frame(captured, padded_bbox, iteration):
+                return True
+        return False
+
+    def _search_vortex_frame(
+        self,
+        captured: CapturedFrame,
+        padded_bbox: BoundingBox,
+        iteration: int,
+    ) -> bool:
+        """Look for Vortex's buttons on the frame that shows its window."""
         img = captured.image
 
         # Check for popup dialogs first (legacy workflow only)
@@ -260,8 +291,8 @@ class Scanner:
         if self.status.web_retry_count >= retry_limit:
             if self.config.vortex:
                 logger.info(
-                    "Web button not found after %s attempts, returning to Vortex scan",
-                    retry_limit,
+                    f"Web button not found after {retry_limit} attempts, "
+                    "returning to Vortex scan"
                 )
                 self.status.current_action = "Rechecking Vortex (web button missing)"
                 self.status.web_retry_count = 0
@@ -344,6 +375,7 @@ class Scanner:
 
         vortex_found: bool = False
         web_clicked: bool = False
+        click_dialog_waits: int = 0
         iteration: int = 0
 
         try:
@@ -359,12 +391,10 @@ class Scanner:
                 # State machine
                 if not vortex_found and self.config.vortex:
                     self.status.state = ScanState.WAITING_FOR_VORTEX
-                    for captured in frames:
-                        if self._handle_vortex_state(captured, iteration):
-                            vortex_found = True
-                            self.status.state = ScanState.VORTEX_CLICKED
-                            self._update_status()
-                            break
+                    if self._handle_vortex_state(frames, iteration):
+                        vortex_found = True
+                        self.status.state = ScanState.VORTEX_CLICKED
+                        self._update_status()
 
                 elif web_clicked and self.config.vortex:
                     self.status.state = ScanState.WEB_CLICKED
@@ -374,9 +404,18 @@ class Scanner:
                             dialog_complete = True
                             break
                     if not dialog_complete:
-                        self.status.current_action = "Waiting for click dialog..."
-                        self._update_status()
+                        click_dialog_waits += 1
+                        if click_dialog_waits >= CLICK_DIALOG_RETRY_LIMIT:
+                            logger.info(
+                                "No 'click here' link after "
+                                f"{CLICK_DIALOG_RETRY_LIMIT} scans, moving on"
+                            )
+                            dialog_complete = True
+                        else:
+                            self.status.current_action = "Waiting for click dialog..."
+                            self._update_status()
                     if dialog_complete:
+                        click_dialog_waits = 0
                         # Reset for next mod
                         vortex_found = False
                         web_clicked = False

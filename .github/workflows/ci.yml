@@ -68,16 +68,21 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
+      # The tables go to the job summary before the step exits, so a failing
+      # score still shows which type or variant caused it.
       - name: Detection benchmark (fail under 0.999)
         shell: bash
         run: |
-          python detection_report.py --fail-under 0.999 | tee report.txt
+          status=0
+          python detection_report.py --fail-under 0.999 > report.txt || status=$?
+          cat report.txt
           {
             echo '### Detection benchmark (${{ matrix.os }})'
             echo '```'
             cat report.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
   test:
     strategy:

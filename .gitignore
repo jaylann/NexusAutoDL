@@ -27,3 +27,4 @@ tools/e2e/targets.toml
 
 # Synthetic detection fixtures are regenerated deterministically (tests/conftest.py bootstrap)
 tests/fixtures/detection/synthetic/*.png
+tests/fixtures/detection/synthetic/generated-from.txt

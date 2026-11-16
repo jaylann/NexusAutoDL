@@ -120,9 +120,10 @@ python main.py --vortex --browser chrome --force-primary
 ```
 
 **What it does:**
-- Positions Vortex and Chrome windows
-- Scans primary monitor only
-- Handles modern green download buttons
+- Scans the primary monitor only, so keep both Vortex and the browser on it
+  (with more than one monitor, Vortex is left where it is instead of being
+  moved to a secondary)
+- Detects the Vortex and Nexus download buttons, old and new designs
 - Clicks through Vortex dialogs automatically
 
 **Best for:** Clean single-monitor setups
@@ -246,7 +247,7 @@ python main.py --vortex --browser chrome
 | `--verbose` | flag | False | Enable detailed debug logging to console |
 | `--force-primary` | flag | False | Scan primary monitor only (ignore secondary displays) |
 | `--window-title` | text | None | Move window containing this text to foreground before scanning |
-| `--min-matches` | int | 8 | Minimum SIFT feature matches required for button detection |
+| `--min-matches` | int | 8 | Minimum SIFT feature matches for the Vortex button (the website, Wabbajack and dialog buttons use a fixed 6) |
 | `--ratio` | float | 0.75 | Lowe ratio test threshold for SIFT matching (0.0-1.0) |
 | `--click-delay` | float | 2.0 | Seconds to wait between scan loop iterations |
 | `--simulate` | flag | False | Run in simulation mode without actual clicking (safe mode) |
@@ -373,10 +374,10 @@ python main.py --help
 
 **Possible Causes:**
 - Window moved between detection and click
-- DPI awareness could not be set (very old Windows, or another component locked it first)
+- Windows refused per-monitor DPI awareness for the process. The usual reason is a compatibility setting on `python.exe` (Properties → Compatibility → "Override high DPI scaling behavior"), which older versions of this README recommended
 
 **Solutions:**
-1. NexusAutoDL declares per-monitor DPI awareness itself at startup — no compatibility overrides needed. Run with `--verbose` and check the logged `Process DPI awareness` level; anything below `system` means clicks may be scaled wrong.
+1. NexusAutoDL declares per-monitor DPI awareness itself at startup, so remove any high-DPI compatibility override on `python.exe`. The log (`nexus_autodl.log`) has a `Process DPI awareness` line: `per_monitor_v2` or `per_monitor` is right. `system` misplaces clicks on monitors scaled differently from the primary, `unaware` on any scaled monitor.
 2. Increase `--click-delay` to ensure pages load:
    ```bash
    python main.py --click-delay 3.0
