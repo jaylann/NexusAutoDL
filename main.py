@@ -96,10 +96,12 @@ def main(
 
     Use --simulate to test without Windows or actual button detection.
     """
+    # Logging first, so the awareness result below reaches the log file a user
+    # attaches to a report. Setting up loguru touches no window API.
+    configure_logging(verbose)
     # Must run before any other win32/mss call: DPI awareness is process-global
     # and one-shot, and everything downstream assumes physical-pixel geometry.
     ensure_dpi_awareness()
-    configure_logging(verbose)
 
     # Validate arguments
     effective_simulation: bool = simulate or not IS_WINDOWS
