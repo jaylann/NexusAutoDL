@@ -11,7 +11,8 @@ python -m venv .venv
 # Windows:  .venv\Scripts\activate
 # macOS/Linux:  source .venv/bin/activate
 pip install -r requirements.txt
-pip install ruff mypy pytest   # dev tools
+pip install -r requirements-dev.txt   # pytest + the pinned ruff
+pip install mypy                      # optional type check
 ```
 
 `pywin32` only installs on Windows. On macOS/Linux the app runs in a limited

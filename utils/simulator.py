@@ -6,19 +6,20 @@ Generates fake detections and runs the full TUI interface.
 from __future__ import annotations
 
 import asyncio
-from loguru import logger
 import random
 import time
-from typing import Callable, Optional
+from typing import Callable
+
+from loguru import logger
 
 from models import (
     AppConfig,
-    ScanStatus,
-    ScanState,
+    BoundingBox,
     ButtonType,
     DetectionResult,
     Monitor,
-    BoundingBox,
+    ScanState,
+    ScanStatus,
 )
 
 
@@ -28,7 +29,7 @@ class SimulatedScanner:
     def __init__(
         self,
         config: AppConfig,
-        status_callback: Optional[Callable[[ScanStatus], None]] = None,
+        status_callback: Callable[[ScanStatus], None] | None = None,
     ):
         """Initialize simulator."""
         self.config = config
@@ -58,7 +59,7 @@ class SimulatedScanner:
             num_matches=num_matches,
         )
 
-    async def scan_loop_async(self, max_iterations: Optional[int] = None) -> None:
+    async def scan_loop_async(self, max_iterations: int | None = None) -> None:
         """Async scanning loop for Textual integration."""
         self.running = True
         iteration = 0
@@ -143,14 +144,16 @@ class SimulatedScanner:
             self.status.state = ScanState.IDLE
             self._update_status()
             logger.info("Simulation cancelled")
-        except Exception as e:
+        # Simulated failures are shown in the status; the TUI keeps running.
+        except Exception as e:  # noqa: BLE001
             error_msg = f"Simulation error: {e}"
-            logger.error(error_msg, exc_info=True)
+            # loguru ignores stdlib's exc_info=True; .exception logs the traceback.
+            logger.exception(error_msg)
             self.status.errors.append(error_msg)
             self.status.state = ScanState.ERROR
             self._update_status()
 
-    def scan_loop(self, max_iterations: Optional[int] = None) -> None:
+    def scan_loop(self, max_iterations: int | None = None) -> None:
         """Synchronous scanning loop (for headless mode)."""
         self.running = True
         iteration = 0
@@ -217,7 +220,7 @@ class SimulatorWindowManager:
     def position_window_by_title(self, title: str):
         logger.info(f"[SIM] Would position window: {title}")
 
-    def get_vortex_bbox(self) -> Optional[BoundingBox]:
+    def get_vortex_bbox(self) -> BoundingBox | None:
         """Return fake Vortex bounding box."""
         return BoundingBox(x1=1920, y1=0, x2=3840, y2=1080)
 

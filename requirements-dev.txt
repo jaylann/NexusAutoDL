@@ -3,3 +3,5 @@
 #   pip install -r requirements.txt -r requirements-dev.txt
 
 pytest>=8.0.0,<9.0.0
+# Exact pin: new ruff releases can change the default rule set (see ruff.toml).
+ruff==0.17.5

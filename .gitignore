@@ -24,3 +24,6 @@ tools/e2e/targets.toml
 
 # macOS
 .DS_Store
+
+# Synthetic detection fixtures are regenerated deterministically (tests/conftest.py bootstrap)
+tests/fixtures/detection/synthetic/*.png

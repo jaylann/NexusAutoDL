@@ -5,12 +5,11 @@ NexusAutoDL - Automated Nexusmods downloader.
 
 from __future__ import annotations
 
-from typing import Optional
-
 import click
 
 from app import run as run_app
 from models import AppConfig, BrowserType
+from utils.dpi import ensure_dpi_awareness
 from utils.logger import configure_logging, get_logger
 from utils.platform import IS_WINDOWS
 
@@ -74,17 +73,17 @@ logger = get_logger(__name__)
     help="Directory to store annotated debug screenshots (optional)",
 )
 def main(
-    browser: Optional[str],
+    browser: str | None,
     vortex: bool,
     legacy: bool,
     verbose: bool,
     force_primary: bool,
-    window_title: Optional[str],
+    window_title: str | None,
     min_matches: int,
     ratio: float,
     click_delay: float,
     simulate: bool,
-    debug_frame_dir: Optional[str],
+    debug_frame_dir: str | None,
 ) -> None:
     """
     NexusAutoDL - Automated Nexusmods downloader.
@@ -94,6 +93,9 @@ def main(
 
     Use --simulate to test without Windows or actual button detection.
     """
+    # Must run before any other win32/mss call: DPI awareness is process-global
+    # and one-shot, and everything downstream assumes physical-pixel geometry.
+    ensure_dpi_awareness()
     configure_logging(verbose)
 
     # Validate arguments
