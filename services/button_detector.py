@@ -69,6 +69,11 @@ TM_GRAD_THRESHOLD = 0.80
 # sub-pixel misalignment of the projected region.
 VERIFY_NCC_THRESHOLD = 0.60
 VERIFY_SEARCH_PAD = 6
+# Share of the button that must be on screen to verify it. Frames are per
+# monitor and the Vortex search box is an inset of its window, so a button near
+# an edge is seen cut off; below half there is too little to be sure of, and
+# the click point (the button's centre) would lie off the frame.
+VERIFY_MIN_VISIBLE = 0.5
 
 
 class ButtonDetector:
@@ -272,24 +277,34 @@ class ButtonDetector:
         cy: float,
         scale: float,
     ) -> float:
-        """NCC between the predicted scene region and the scaled template."""
+        """NCC between the predicted scene region and the scaled template.
+
+        Only the part of the button that lies inside ``scene_gray`` is
+        compared, so a button cut by the frame edge still verifies; -1.0 when
+        less than ``VERIFY_MIN_VISIBLE`` of it is there.
+        """
         sw = max(8, round(template.width * scale))
         sh = max(8, round(template.height * scale))
         interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
         resized = cv2.resize(template.gray, (sw, sh), interpolation=interpolation)
 
         scene_h, scene_w = scene_gray.shape[:2]
-        x1 = max(0, int(cx - sw / 2) - VERIFY_SEARCH_PAD)
-        y1 = max(0, int(cy - sh / 2) - VERIFY_SEARCH_PAD)
-        x2 = min(scene_w, int(cx + sw / 2) + VERIFY_SEARCH_PAD)
-        y2 = min(scene_h, int(cy + sh / 2) + VERIFY_SEARCH_PAD)
-        if x2 - x1 < sw or y2 - y1 < sh:
+        left, top = round(cx - sw / 2), round(cy - sh / 2)
+        vis_x1, vis_y1 = max(0, left), max(0, top)
+        vis_x2, vis_y2 = min(scene_w, left + sw), min(scene_h, top + sh)
+        if vis_x2 <= vis_x1 or vis_y2 <= vis_y1:
+            return -1.0
+        visible = (vis_x2 - vis_x1) * (vis_y2 - vis_y1) / (sw * sh)
+        if visible < VERIFY_MIN_VISIBLE:
             return -1.0
 
-        result = cv2.matchTemplate(
-            scene_gray[y1:y2, x1:x2], resized, cv2.TM_CCOEFF_NORMED
-        )
-        return float(result.max())
+        part = resized[vis_y1 - top : vis_y2 - top, vis_x1 - left : vis_x2 - left]
+        x1 = max(0, vis_x1 - VERIFY_SEARCH_PAD)
+        y1 = max(0, vis_y1 - VERIFY_SEARCH_PAD)
+        x2 = min(scene_w, vis_x2 + VERIFY_SEARCH_PAD)
+        y2 = min(scene_h, vis_y2 + VERIFY_SEARCH_PAD)
+        result = cv2.matchTemplate(scene_gray[y1:y2, x1:x2], part, cv2.TM_CCOEFF_NORMED)
+        return float(np.nan_to_num(result, nan=-1.0, posinf=-1.0, neginf=-1.0).max())
 
     def _match_sift(
         self,
@@ -355,7 +370,11 @@ class ButtonDetector:
 
         # Appearance check: a geometrically coherent fit can still be a shared
         # text fragment inside a different button (e.g. "download" glyphs).
-        verify_score = self._verify_match(template, scene_gray, cx, cy, scale)
+        # ``scene_gray`` is the whole frame, not the search box: a button the
+        # box slices through is compared in full.
+        verify_score = self._verify_match(
+            template, scene_gray, cx + offset_x, cy + offset_y, scale
+        )
         if verify_score < VERIFY_NCC_THRESHOLD:
             logger.debug(
                 f"{button_type}: rejected fit, appearance check scored "
@@ -533,8 +552,13 @@ class ButtonDetector:
             img_to_search = img[y1:y2, x1:x2]
             offset_x, offset_y = x1, y1
 
-        # Convert to grayscale and compute keypoints
-        gray = cv2.cvtColor(img_to_search, cv2.COLOR_RGB2GRAY)
+        # Keypoints come from the search box only; the whole frame stays at
+        # hand for the appearance check.
+        full_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        gray = full_gray[
+            offset_y : offset_y + img_to_search.shape[0],
+            offset_x : offset_x + img_to_search.shape[1],
+        ]
         kps, des = self.sift.detectAndCompute(gray, mask=None)
 
         best_result: DetectionResult | None = None
@@ -544,7 +568,7 @@ class ButtonDetector:
                     template,
                     kps,
                     des,
-                    gray,
+                    full_gray,
                     button_type,
                     min_matches,
                     ratio,

@@ -186,3 +186,51 @@ class TestRejectsNonButtons:
         img = half_painted_window()
         for bt in ButtonType:
             assert detector.detect(img, bt) is None
+
+
+class TestButtonsCutByAnEdge:
+    """A button partly beyond the frame or the search box is still a button.
+
+    Frames are per monitor and the Vortex search box is an inset of its
+    window, so a button near either edge is seen cut off.
+    """
+
+    @pytest.mark.parametrize("cut", [0.05, 0.10, 0.25])
+    @pytest.mark.parametrize(
+        "button_type",
+        [ButtonType.VORTEX, ButtonType.WEBSITE, ButtonType.WABBAJACK, ButtonType.CLICK],
+    )
+    def test_button_running_past_the_right_frame_edge(
+        self, detector: ButtonDetector, button_type: ButtonType, cut: float
+    ) -> None:
+        from tests._generate_synthetic import _TEMPLATE_ASSET
+
+        button = read_rgb(ASSETS_PATH / _TEMPLATE_ASSET[button_type])
+        canvas = _background(0)
+        center = _paste(canvas, button, (480, 300), 1.0)
+        # Crop the frame so `cut` of the button's width lies beyond its edge.
+        right_edge = center[0] + round(button.shape[1] * (0.5 - cut))
+        frame = np.ascontiguousarray(canvas[:, :right_edge])
+
+        result = detector.detect(frame, button_type)
+
+        assert result is not None
+        assert abs(result.x - center[0]) <= 4 and abs(result.y - center[1]) <= 4
+
+    def test_button_sliced_by_the_search_box(self, detector: ButtonDetector) -> None:
+        img, center = TestDetect()._scene(ButtonType.VORTEX)
+        button_width = 421
+        left = center[0] - button_width // 2 + round(0.08 * button_width)
+        bbox = BoundingBox(x1=left, y1=200, x2=1200, y2=420)
+
+        result = detector.detect(img, ButtonType.VORTEX, bbox=bbox)
+
+        assert result is not None
+        assert abs(result.x - center[0]) <= 4 and abs(result.y - center[1]) <= 4
+
+    def test_sliver_of_a_button_is_not_enough(self, detector: ButtonDetector) -> None:
+        # Less than half of it visible: too little to be sure, and the click
+        # point would lie outside the frame.
+        img, center = TestDetect()._scene(ButtonType.VORTEX)
+        frame = np.ascontiguousarray(img[:, : center[0] - 60])
+        assert detector.detect(frame, ButtonType.VORTEX) is None
